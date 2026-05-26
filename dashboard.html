@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LifeOS · 数据看板</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    /* LifeOS 数据看板 — 与主站一致的深色简约风 */
+    :root {
+      --bg: #0f1729;
+      --surface: rgba(255, 255, 255, 0.05);
+      --text: #ffffff;
+      --text-muted: rgba(255, 255, 255, 0.5);
+      --accent: #38bdf8;
+      --accent-soft: rgba(56, 189, 248, 0.15);
+      --shadow: 0 4px 24px rgba(0, 0, 0, 0.28);
+      --space: 24px;
+      --radius: 12px;
+      --ease: 300ms ease-in-out;
+      --font: "Noto Sans SC", system-ui, sans-serif;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      min-height: 100dvh;
+      font-family: var(--font);
+      font-weight: 400;
+      color: var(--text);
+      background: var(--bg);
+      line-height: 1.6;
+    }
+
+    .app {
+      max-width: 960px;
+      margin: 0 auto;
+      padding: var(--space) 20px calc(var(--space) * 2);
+    }
+
+    .top-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space);
+      margin-bottom: calc(var(--space) * 1.5);
+    }
+
+    .top-bar__title {
+      font-size: 1.35rem;
+      font-weight: 500;
+      letter-spacing: 0.04em;
+    }
+
+    .top-bar__link {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      text-decoration: none;
+      transition: color var(--ease);
+    }
+
+    .top-bar__link:hover { color: var(--accent); }
+
+    /* 关键指标 */
+    .kpi-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: var(--space);
+      margin-bottom: calc(var(--space) * 1.5);
+    }
+
+    @media (max-width: 640px) {
+      .kpi-row { grid-template-columns: 1fr; }
+    }
+
+    .kpi-card {
+      padding: var(--space);
+      background: var(--surface);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      transition: background var(--ease), transform var(--ease);
+    }
+
+    .kpi-card__label {
+      font-size: 0.75rem;
+      font-weight: 300;
+      color: var(--text-muted);
+      letter-spacing: 0.1em;
+      margin-bottom: 8px;
+    }
+
+    .kpi-card__value {
+      font-size: 2rem;
+      font-weight: 500;
+      color: var(--accent);
+      transition: opacity var(--ease);
+    }
+
+    /* 中间双栏：雷达 + 热力图 */
+    .charts-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--space);
+      margin-bottom: calc(var(--space) * 1.5);
+    }
+
+    @media (max-width: 720px) {
+      .charts-row { grid-template-columns: 1fr; }
+    }
+
+    .panel {
+      padding: var(--space);
+      background: var(--surface);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+
+    .panel__title {
+      font-size: 0.8rem;
+      font-weight: 400;
+      color: var(--text-muted);
+      letter-spacing: 0.12em;
+      margin-bottom: var(--space);
+    }
+
+    .radar-wrap {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    #radar-canvas {
+      max-width: 100%;
+      height: auto;
+    }
+
+    /* GitHub 风格 7 日热力图 */
+    .heatmap {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .heatmap__cells {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 10px;
+    }
+
+    .heatmap__cell {
+      aspect-ratio: 1;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.06);
+      transition: background var(--ease), transform var(--ease);
+    }
+
+    .heatmap__cell[data-level="1"] { background: rgba(56, 189, 248, 0.2); }
+    .heatmap__cell[data-level="2"] { background: rgba(56, 189, 248, 0.4); }
+    .heatmap__cell[data-level="3"] { background: rgba(56, 189, 248, 0.65); }
+    .heatmap__cell[data-level="4"] { background: rgba(56, 189, 248, 0.9); }
+
+    .heatmap__labels {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 10px;
+      font-size: 0.65rem;
+      color: var(--text-muted);
+      text-align: center;
+    }
+
+    .heatmap__legend {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      margin-top: 8px;
+    }
+
+    .heatmap__legend span {
+      width: 12px;
+      height: 12px;
+      border-radius: 3px;
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    .heatmap__legend span.l1 { background: rgba(56, 189, 248, 0.2); }
+    .heatmap__legend span.l4 { background: rgba(56, 189, 248, 0.9); }
+
+    /* 活动时间线 */
+    .timeline-section { margin-top: var(--space); }
+
+    .timeline {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: var(--space);
+      position: relative;
+      padding-left: 20px;
+    }
+
+    .timeline::before {
+      content: "";
+      position: absolute;
+      left: 5px;
+      top: 8px;
+      bottom: 8px;
+      width: 2px;
+      background: rgba(255, 255, 255, 0.08);
+    }
+
+    .timeline__item {
+      position: relative;
+      padding: var(--space);
+      background: var(--surface);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      transition: background var(--ease);
+    }
+
+    .timeline__item::before {
+      content: "";
+      position: absolute;
+      left: -20px;
+      top: 28px;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 12px rgba(56, 189, 248, 0.5);
+    }
+
+    .timeline__time {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+
+    .timeline__content {
+      font-size: 0.95rem;
+      font-weight: 300;
+    }
+
+    .timeline__tags {
+      margin-top: 10px;
+      font-size: 0.75rem;
+      color: var(--accent);
+      opacity: 0.85;
+    }
+
+    .state-msg {
+      text-align: center;
+      padding: calc(var(--space) * 2);
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      font-weight: 300;
+    }
+
+    .state-msg--error { color: #f87171; }
+
+    .state-msg a { color: var(--accent); }
+
+    .loading .kpi-card__value { opacity: 0.35; }
+  </style>
+</head>
+<body>
+  <div class="app" id="app">
+    <header class="top-bar">
+      <h1 class="top-bar__title">数据看板</h1>
+      <a href="index.html" class="top-bar__link">← 返回主页</a>
+    </header>
+
+    <!-- 关键数字 -->
+    <section class="kpi-row" aria-label="关键指标">
+      <div class="kpi-card">
+        <p class="kpi-card__label">总记录数</p>
+        <p class="kpi-card__value" id="kpi-total">—</p>
+      </div>
+      <div class="kpi-card">
+        <p class="kpi-card__label">连续打卡</p>
+        <p class="kpi-card__value" id="kpi-streak">—</p>
+      </div>
+      <div class="kpi-card">
+        <p class="kpi-card__label">总经验值</p>
+        <p class="kpi-card__value" id="kpi-xp">—</p>
+      </div>
+    </section>
+
+    <section class="charts-row" aria-label="图表">
+      <div class="panel">
+        <h2 class="panel__title">技能分布</h2>
+        <div class="radar-wrap">
+          <canvas id="radar-canvas" width="280" height="280" role="img" aria-label="五维技能雷达图"></canvas>
+        </div>
+      </div>
+      <div class="panel">
+        <h2 class="panel__title">近 7 日打卡</h2>
+        <div class="heatmap" id="heatmap"></div>
+      </div>
+    </section>
+
+    <section class="timeline-section panel" aria-label="最近活动">
+      <h2 class="panel__title">活动时间线</h2>
+      <ul class="timeline" id="timeline"></ul>
+      <p class="state-msg" id="timeline-empty" hidden>暂无活动记录</p>
+    </section>
+
+    <p class="state-msg" id="global-status" hidden></p>
+  </div>
+
+  <script>
+    /*
+     * LifeOS 数据看板
+     *
+     * Supabase 建表 SQL（在 Supabase SQL Editor 中执行）：
+     *
+     * create table activity_logs (
+     *   id uuid primary key default gen_random_uuid(),
+     *   content text not null,
+     *   created_at timestamptz not null default now(),
+     *   skills jsonb default '[]'::jsonb
+     * );
+     *
+     * create table user_skills (
+     *   skill_id text primary key,
+     *   xp int not null default 0,
+     *   level int not null default 1,
+     *   updated_at timestamptz default now()
+     * );
+     *
+     * alter table activity_logs enable row level security;
+     * alter table user_skills enable row level security;
+     * create policy "anon read logs" on activity_logs for select using (true);
+     * create policy "anon read skills" on user_skills for select using (true);
+     */
+
+    // ========== Supabase 配置（请替换为你的项目 URL 与 anon key）==========
+    const SUPABASE_URL = 'YOUR_SUPABASE_URL';
+    const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+
+    // 五个技能维度（与主应用一致）
+    const SKILL_ORDER = [
+      { id: 'coding', name: '编程' },
+      { id: 'reading', name: '阅读' },
+      { id: 'sport', name: '运动' },
+      { id: 'language', name: '语言' },
+      { id: 'writing', name: '写作' },
+    ];
+
+    const SKILL_NAME_MAP = Object.fromEntries(SKILL_ORDER.map((s) => [s.id, s.name]));
+
+    let supabaseClient = null;
+
+    /** 初始化 Supabase 客户端 */
+    function initSupabase() {
+      if (!SUPABASE_URL || SUPABASE_URL.includes('YOUR_')) return null;
+      if (!SUPABASE_ANON_KEY || SUPABASE_ANON_KEY.includes('YOUR_')) return null;
+      return window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    }
+
+    /** 从 Supabase 拉取打卡记录 */
+    async function fetchLogs() {
+      const { data, error } = await supabaseClient
+        .from('activity_logs')
+        .select('id, content, created_at, skills')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return (data || []).map((row) => ({
+        id: row.id,
+        content: row.content,
+        time: row.created_at,
+        skills: Array.isArray(row.skills) ? row.skills : [],
+      }));
+    }
+
+    /** 从 Supabase 拉取技能经验 */
+    async function fetchSkills() {
+      const { data, error } = await supabaseClient
+        .from('user_skills')
+        .select('skill_id, xp, level');
+      if (error) throw error;
+      const map = {};
+      SKILL_ORDER.forEach((s) => {
+        map[s.id] = { xp: 0, level: 1 };
+      });
+      (data || []).forEach((row) => {
+        map[row.skill_id] = { xp: row.xp ?? 0, level: row.level ?? 1 };
+      });
+      return map;
+    }
+
+    /** 计算连续打卡天数（从今天或昨天起向前连续有记录的天数） */
+    function calcStreak(logs) {
+      const daySet = new Set();
+      logs.forEach((log) => daySet.add(toDateKey(new Date(log.time))));
+
+      const cursor = new Date();
+      cursor.setHours(0, 0, 0, 0);
+      // 今日未打卡则从昨日开始计，避免当天稍晚打卡前显示为 0
+      if (!daySet.has(toDateKey(cursor))) {
+        cursor.setDate(cursor.getDate() - 1);
+      }
+
+      let streak = 0;
+      while (daySet.has(toDateKey(cursor))) {
+        streak += 1;
+        cursor.setDate(cursor.getDate() - 1);
+      }
+      return streak;
+    }
+
+    /** 日期转 YYYY-MM-DD */
+    function toDateKey(date) {
+      const y = date.getFullYear();
+      const m = String(date.getMonth() + 1).padStart(2, '0');
+      const d = String(date.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    }
+
+    /** 格式化显示时间 */
+    function formatTime(iso) {
+      const d = new Date(iso);
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      const h = String(d.getHours()).padStart(2, '0');
+      const min = String(d.getMinutes()).padStart(2, '0');
+      return `${m}-${day} ${h}:${min}`;
+    }
+
+    /** 技能 id 转中文名 */
+    function skillLabels(ids) {
+      return (ids || [])
+        .map((id) => SKILL_NAME_MAP[id])
+        .filter(Boolean)
+        .join(' · ');
+    }
+
+    /** 更新顶部 KPI */
+    function renderKpi(logs, skills) {
+      const totalXp = Object.values(skills).reduce((sum, s) => sum + (s.xp || 0), 0);
+      document.getElementById('kpi-total').textContent = String(logs.length);
+      document.getElementById('kpi-streak').textContent = `${calcStreak(logs)} 天`;
+      document.getElementById('kpi-xp').textContent = String(totalXp);
+    }
+
+    /** Canvas 绘制五维雷达图 */
+    function drawRadar(skills) {
+      const canvas = document.getElementById('radar-canvas');
+      const ctx = canvas.getContext('2d');
+      const w = canvas.width;
+      const h = canvas.height;
+      const cx = w / 2;
+      const cy = h / 2;
+      const radius = Math.min(w, h) * 0.36;
+      const n = SKILL_ORDER.length;
+
+      const values = SKILL_ORDER.map((s) => skills[s.id]?.xp ?? 0);
+      const maxVal = Math.max(...values, 1);
+      const normalized = values.map((v) => v / maxVal);
+
+      ctx.clearRect(0, 0, w, h);
+
+      // 背景网格圈
+      ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+      ctx.lineWidth = 1;
+      for (let ring = 1; ring <= 4; ring++) {
+        ctx.beginPath();
+        const r = (radius * ring) / 4;
+        for (let i = 0; i < n; i++) {
+          const angle = (Math.PI * 2 * i) / n - Math.PI / 2;
+          const x = cx + r * Math.cos(angle);
+          const y = cy + r * Math.sin(angle);
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+        ctx.closePath();
+        ctx.stroke();
+      }
+
+      // 轴线与标签
+      ctx.fillStyle = 'rgba(255,255,255,0.55)';
+      ctx.font = '12px "Noto Sans SC", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+
+      for (let i = 0; i < n; i++) {
+        const angle = (Math.PI * 2 * i) / n - Math.PI / 2;
+        const x = cx + radius * Math.cos(angle);
+        const y = cy + radius * Math.sin(angle);
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(x, y);
+        ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+        ctx.stroke();
+
+        const lx = cx + (radius + 28) * Math.cos(angle);
+        const ly = cy + (radius + 28) * Math.sin(angle);
+        ctx.fillText(SKILL_ORDER[i].name, lx, ly);
+      }
+
+      // 数据多边形
+      ctx.beginPath();
+      for (let i = 0; i < n; i++) {
+        const angle = (Math.PI * 2 * i) / n - Math.PI / 2;
+        const r = radius * normalized[i];
+        const x = cx + r * Math.cos(angle);
+        const y = cy + r * Math.sin(angle);
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.closePath();
+      ctx.fillStyle = 'rgba(56, 189, 248, 0.25)';
+      ctx.fill();
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // 顶点圆点
+      for (let i = 0; i < n; i++) {
+        const angle = (Math.PI * 2 * i) / n - Math.PI / 2;
+        const r = radius * normalized[i];
+        const x = cx + r * Math.cos(angle);
+        const y = cy + r * Math.sin(angle);
+        ctx.beginPath();
+        ctx.arc(x, y, 4, 0, Math.PI * 2);
+        ctx.fillStyle = '#38bdf8';
+        ctx.fill();
+      }
+    }
+
+    /** 近 7 日热力图（GitHub 贡献图风格） */
+    function renderHeatmap(logs) {
+      const container = document.getElementById('heatmap');
+      const days = [];
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date(today);
+        d.setDate(d.getDate() - i);
+        const key = toDateKey(d);
+        const count = logs.filter((log) => toDateKey(new Date(log.time)) === key).length;
+        days.push({ date: d, key, count });
+      }
+
+      const maxCount = Math.max(...days.map((d) => d.count), 1);
+      const weekdays = ['日', '一', '二', '三', '四', '五', '六'];
+
+      let html = '<div class="heatmap__cells">';
+      days.forEach((day) => {
+        let level = 0;
+        if (day.count > 0) {
+          level = Math.min(4, Math.ceil((day.count / maxCount) * 4));
+        }
+        html += `<div class="heatmap__cell" data-level="${level}" title="${day.key}：${day.count} 条"></div>`;
+      });
+      html += '</div><div class="heatmap__labels">';
+      days.forEach((day) => {
+        const label = `${day.date.getMonth() + 1}/${day.date.getDate()} ${weekdays[day.date.getDay()]}`;
+        html += `<span>${label}</span>`;
+      });
+      html += '</div><div class="heatmap__legend"><span></span>少<span class="l1"></span><span class="l4"></span>多</div>';
+
+      container.innerHTML = html;
+    }
+
+    /** 最近活动时间线（最多 12 条） */
+    function renderTimeline(logs) {
+      const list = document.getElementById('timeline');
+      const empty = document.getElementById('timeline-empty');
+      const recent = logs.slice(0, 12);
+
+      list.innerHTML = '';
+      if (recent.length === 0) {
+        empty.hidden = false;
+        return;
+      }
+      empty.hidden = true;
+
+      recent.forEach((log) => {
+        const li = document.createElement('li');
+        li.className = 'timeline__item';
+        const tags = skillLabels(log.skills);
+        li.innerHTML = `
+          <time class="timeline__time" datetime="${log.time}">${formatTime(log.time)}</time>
+          <p class="timeline__content">${escapeHtml(log.content)}</p>
+          ${tags ? `<p class="timeline__tags">${escapeHtml(tags)}</p>` : ''}
+        `;
+        list.appendChild(li);
+      });
+    }
+
+    /** 简单 HTML 转义 */
+    function escapeHtml(str) {
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    /** 显示全局状态信息 */
+    function showStatus(msg, isError) {
+      const el = document.getElementById('global-status');
+      el.textContent = msg;
+      el.hidden = false;
+      el.className = 'state-msg' + (isError ? ' state-msg--error' : '');
+    }
+
+    /** 主流程：加载数据并渲染看板 */
+    async function boot() {
+      document.getElementById('app').classList.add('loading');
+
+      supabaseClient = initSupabase();
+      if (!supabaseClient) {
+        showStatus(
+          '请先在 dashboard.html 中配置 SUPABASE_URL 与 SUPABASE_ANON_KEY，并在 Supabase 中创建 activity_logs、user_skills 表（见文件内 SQL 注释）。',
+          true
+        );
+        document.getElementById('app').classList.remove('loading');
+        return;
+      }
+
+      try {
+        const [logs, skills] = await Promise.all([fetchLogs(), fetchSkills()]);
+        renderKpi(logs, skills);
+        drawRadar(skills);
+        renderHeatmap(logs);
+        renderTimeline(logs);
+      } catch (err) {
+        console.error(err);
+        showStatus(`数据加载失败：${err.message || err}`, true);
+      } finally {
+        document.getElementById('app').classList.remove('loading');
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', boot);
+  </script>
+</body>
+</html>

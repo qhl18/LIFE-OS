@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LifeOS - 记录即存在</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;600&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="bg-glow bg-glow--1" aria-hidden="true"></div>
+
+  <div class="app">
+    <!-- 首页 -->
+    <div class="view view--active" data-view="home">
+      <header class="header">
+        <div class="header__badge">LifeOS</div>
+        <h1 class="header__title">记录即存在</h1>
+        <p class="header__subtitle">记录人生轨迹，让存在被看见</p>
+      </header>
+
+      <main class="main">
+        <section class="modules" aria-label="功能模块">
+          <a href="#" class="card" data-module="noble">
+            <span class="card__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7L12 17.8 5.7 21l2.3-7-6-4.6h7.6L12 2z"/>
+              </svg>
+            </span>
+            <h2 class="card__title">贵人如云</h2>
+            <p class="card__desc">记录生命中的重要他人与缘分</p>
+          </a>
+
+          <a href="#" class="card" data-module="career">
+            <span class="card__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <rect x="3" y="7" width="18" height="13" rx="2"/>
+                <path d="M8 7V5a4 4 0 018 0v2"/>
+                <path d="M12 12v3"/>
+              </svg>
+            </span>
+            <h2 class="card__title">事业有成</h2>
+            <p class="card__desc">追踪职业成长与里程碑</p>
+          </a>
+
+          <a href="#" class="card" data-module="declutter">
+            <span class="card__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/>
+                <path d="M10 11v6M14 11v6"/>
+              </svg>
+            </span>
+            <h2 class="card__title">断舍离</h2>
+            <p class="card__desc">整理物品与心结，轻装前行</p>
+          </a>
+
+          <a href="#" class="card" data-module="review">
+            <span class="card__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <circle cx="12" cy="12" r="9"/>
+                <path d="M12 7v5l3 3"/>
+              </svg>
+            </span>
+            <h2 class="card__title">往事复盘</h2>
+            <p class="card__desc">回顾过往，提炼经验与感悟</p>
+          </a>
+
+          <a href="#" class="card card--wide" data-module="legacy">
+            <span class="card__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M4 19.5A2.5 2.5 0 016.5 17H20"/>
+                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/>
+                <path d="M8 7h8M8 11h6"/>
+              </svg>
+            </span>
+            <h2 class="card__title">数字遗产</h2>
+            <p class="card__desc">规划数字资产与传承意愿</p>
+          </a>
+        </section>
+      </main>
+    </div>
+
+    <!-- 打卡 / 记录页 -->
+    <div class="view" data-view="log">
+      <header class="page-header">
+        <h1 class="page-header__title">今日记录</h1>
+        <p class="page-header__subtitle">写下今天做了什么，积累技能经验</p>
+      </header>
+
+      <section class="log-form" aria-label="打卡表单">
+        <label class="sr-only" for="log-input">今天做了什么</label>
+        <textarea
+          id="log-input"
+          class="log-form__input"
+          rows="4"
+          placeholder="例如：学习了 Python 的 NumPy 库"
+        ></textarea>
+        <button type="button" id="log-submit" class="btn btn--primary">记录</button>
+      </section>
+
+      <section class="log-history" aria-label="历史记录">
+        <h2 class="section-title">历史记录</h2>
+        <ul id="log-list" class="log-list"></ul>
+        <p id="log-empty" class="empty-hint">暂无记录，写下第一条吧</p>
+      </section>
+    </div>
+
+    <!-- 统计 / 技能树页 -->
+    <div class="view" data-view="stats">
+      <header class="page-header">
+        <h1 class="page-header__title">技能树</h1>
+        <p class="page-header__subtitle">记录越多，成长越快 · <a href="dashboard.html" style="color:#38bdf8;text-decoration:none;">数据看板</a></p>
+      </header>
+
+      <section class="skill-tree" id="skill-tree" aria-label="技能经验值"></section>
+    </div>
+
+    <!-- 设置页占位 -->
+    <div class="view" data-view="settings">
+      <header class="page-header">
+        <h1 class="page-header__title">设置</h1>
+        <p class="page-header__subtitle">即将推出</p>
+      </header>
+    </div>
+
+    <nav class="nav" aria-label="底部导航">
+      <a href="#" class="nav__item nav__item--active" data-nav="home" aria-current="page">
+        <span class="nav__icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M3 10.5L12 4l9 6.5V20a1 1 0 01-1 1H4a1 1 0 01-1-1v-9.5z"/>
+          </svg>
+        </span>
+        <span class="nav__label">首页</span>
+      </a>
+      <a href="#" class="nav__item" data-nav="log">
+        <span class="nav__icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M12 20h9M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/>
+          </svg>
+        </span>
+        <span class="nav__label">记录</span>
+      </a>
+      <a href="#" class="nav__item" data-nav="stats">
+        <span class="nav__icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M4 19V5M4 19h16M8 15v-3M12 19v-6M16 11V5"/>
+          </svg>
+        </span>
+        <span class="nav__label">统计</span>
+      </a>
+      <a href="#" class="nav__item" data-nav="settings">
+        <span class="nav__icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>
+          </svg>
+        </span>
+        <span class="nav__label">设置</span>
+      </a>
+    </nav>
+  </div>
+  // 1. 引⼊ Supabase（通过 CDN ⽅式，不需要额外安装）
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabasejs@2/dist/umd/supabase.min.js"></script>
+  <script>
+  // 2. 配置 Supabase（把下⾯的 URL 和 KEY 替换成你⾃⼰的）
+  const SUPABASE_URL = 'https://你的项⽬地址.supabase.co';
+  const SUPABASE_KEY = '你的anon密钥';
+  // 3. 创建客⼾端
+  const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  // 现在你可以使⽤ supabase 对象来操作数据库了！
+  <script src="app.js"></script>
+</body>
+</html>
