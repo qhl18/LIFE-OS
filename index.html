@@ -162,15 +162,19 @@
     </nav>
     <footer class="footer">© 2026 LifeOS</footer>
   </div>
-  // 1. 引⼊ Supabase（通过 CDN ⽅式，不需要额外安装）
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+  <!-- Supabase 接入预留：占位配置时跳过初始化，避免阻塞页面交互 -->
+  <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
   <script>
-  // 2. 配置 Supabase（把下⾯的 URL 和 KEY 替换成你⾃⼰的）
-  const SUPABASE_URL = 'https://你的项⽬地址.supabase.co';
-  const SUPABASE_KEY = '你的anon密钥';
-  // 3. 创建客⼾端
-  const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-  // 现在你可以使⽤ supabase 对象来操作数据库了！
+  // Supabase 配置（接入时替换为真实的 URL 和 anon key）
+  var SUPABASE_URL = 'https://YOUR_PROJECT.supabase.co';
+  var SUPABASE_KEY = 'YOUR_ANON_KEY';
+  window.addEventListener('load', function () {
+    try {
+      if (window.supabase && SUPABASE_URL.indexOf('YOUR_') === -1) {
+        window.supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+      }
+    } catch (e) { /* 后端未接入时忽略，不影响页面交互 */ }
+  });
   </script>
   <script src="app.js"></script>
 </body>

@@ -312,6 +312,19 @@ function renderSkillTree(leveledUpIds = []) {
   }
 }
 
+/** 模块占位提示 */
+function showModuleToast(name) {
+  let toast = document.querySelector('.level-toast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.className = 'level-toast';
+    document.body.appendChild(toast);
+  }
+  toast.textContent = `「${name}」模块规划中，敬请期待`;
+  toast.classList.add('level-toast--show');
+  setTimeout(() => toast.classList.remove('level-toast--show'), 2000);
+}
+
 /** 初始化导航与事件 */
 function init() {
   document.querySelectorAll('.nav__item').forEach((item) => {
@@ -324,11 +337,24 @@ function init() {
     });
   });
 
-  document.getElementById('log-submit').addEventListener('click', submitLog);
-
-  document.getElementById('log-input').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) submitLog();
+  // 首页模块卡片目前为占位，点击给出提示而非无反应
+  document.querySelectorAll('.card[data-module]').forEach((card) => {
+    card.addEventListener('click', (e) => {
+      e.preventDefault();
+      const title = card.querySelector('.card__title');
+      showModuleToast(title ? title.textContent.trim() : '该模块');
+    });
   });
+
+  const submitBtn = document.getElementById('log-submit');
+  if (submitBtn) submitBtn.addEventListener('click', submitLog);
+
+  const input = document.getElementById('log-input');
+  if (input) {
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) submitLog();
+    });
+  }
 
   renderLogList();
   renderSkillTree();
