@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>LifeOS - 记录即存在</title>
-  <link rel="stylesheet" href="styles.css?v=20260809c">
+  <link rel="stylesheet" href="styles.css?v=20260922a">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -115,8 +115,146 @@
   </div>
 
   <div class="app">
-    <!-- ===== 首页：三大板块 ===== -->
-    <div class="view view--active" data-view="home">
+    <!-- ===== 首页：融合版仪表盘（四宫格 + 时间线） ===== -->
+    <div class="view view--active" data-view="dashboard">
+      <header class="dash-header">
+        <p class="dash-header__date" id="dash-date"></p>
+        <h1 class="dash-header__greet" id="dash-greet"></h1>
+      </header>
+
+      <div class="quad-grid">
+
+        <!-- 左上：今日（滑动：趋势 / 目标） -->
+        <section class="quad-panel" data-quad="today" aria-label="今日">
+          <div class="quad-panel__head">
+            <h2 class="quad-panel__title">今日</h2>
+            <span class="quad-panel__lock" aria-hidden="true" title="此看板可单独加锁">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <rect x="5" y="11" width="14" height="9" rx="2"/>
+                <path d="M8 11V7a4 4 0 018 0v4"/>
+              </svg>
+            </span>
+            <div class="quad-dots" aria-hidden="true">
+              <span class="quad-dot quad-dot--active"></span>
+              <span class="quad-dot"></span>
+              <span class="quad-dot"></span>
+            </div>
+          </div>
+          <div class="quad-swipe">
+            <div class="quad-slide">
+              <p class="quad-slide__hint">这里会住进<strong>今天该做的事</strong>：课程表导进来、点一下就打卡、每件事都和你的目标挂钩。</p>
+              <span class="quad-slide__tag">Sprint 2 开门</span>
+            </div>
+            <div class="quad-slide">
+              <p class="quad-slide__hint">往这边滑是<strong>趋势</strong>：数据一天天攒起来，替你看见你自己。</p>
+              <span class="quad-slide__tag">Sprint 2 开门</span>
+            </div>
+            <div class="quad-slide">
+              <p class="quad-slide__hint">再滑是<strong>目标</strong>：每一个走到哪了，一眼看全，不用翻页。</p>
+              <span class="quad-slide__tag">Sprint 2 开门</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- 右上：睡眠（滑动：饮食 / 自定义） -->
+        <section class="quad-panel" data-quad="sleep" aria-label="睡眠">
+          <div class="quad-panel__head">
+            <h2 class="quad-panel__title">睡眠</h2>
+            <span class="quad-panel__lock" aria-hidden="true" title="此看板可单独加锁">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <rect x="5" y="11" width="14" height="9" rx="2"/>
+                <path d="M8 11V7a4 4 0 018 0v4"/>
+              </svg>
+            </span>
+            <div class="quad-dots" aria-hidden="true">
+              <span class="quad-dot quad-dot--active"></span>
+              <span class="quad-dot"></span>
+              <span class="quad-dot"></span>
+            </div>
+          </div>
+          <div class="quad-swipe">
+            <div class="quad-slide">
+              <p class="quad-slide__hint">床位已经铺好：<strong>入睡、醒来、深睡浅睡、梦</strong>。记满一晚，它就开始懂你。</p>
+              <span class="quad-slide__tag">Sprint 3 开门</span>
+            </div>
+            <div class="quad-slide">
+              <p class="quad-slide__hint">这边是<strong>饮食</strong>：一日三餐。以后拍张照就能记——识别是阶段二的事，先说好。</p>
+              <span class="quad-slide__tag">Sprint 3 开门</span>
+            </div>
+            <div class="quad-slide">
+              <p class="quad-slide__hint">第三屏<strong>由你定义</strong>：情绪、月经、或者别的什么，你说了算。</p>
+              <span class="quad-slide__tag">Sprint 3 开门</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- 左下：自定义记录 -->
+        <section class="quad-panel quad-panel--static" data-quad="custom" aria-label="自定义记录">
+          <div class="quad-panel__head">
+            <h2 class="quad-panel__title">自定义记录</h2>
+            <span class="quad-panel__lock" aria-hidden="true" title="此看板可单独加锁">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <rect x="5" y="11" width="14" height="9" rx="2"/>
+                <path d="M8 11V7a4 4 0 018 0v4"/>
+              </svg>
+            </span>
+          </div>
+          <div class="quad-swipe">
+            <div class="quad-slide">
+              <p class="quad-slide__hint">体重、健身、情感点滴、灵感、小说进度——<strong>想记什么，卡片自己开</strong>。</p>
+              <span class="quad-slide__tag">Sprint 4 开门</span>
+            </div>
+          </div>
+        </section>
+
+        <!-- 右下：存款 -->
+        <section class="quad-panel quad-panel--static" data-quad="finance" aria-label="存款">
+          <div class="quad-panel__head">
+            <h2 class="quad-panel__title">存款</h2>
+            <span class="quad-panel__lock" aria-hidden="true" title="此看板可单独加锁">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <rect x="5" y="11" width="14" height="9" rx="2"/>
+                <path d="M8 11V7a4 4 0 018 0v4"/>
+              </svg>
+            </span>
+          </div>
+          <div class="quad-swipe">
+            <div class="quad-slide">
+              <p class="quad-slide__hint">记账的柜台还没开门。开门那天，<strong>每一笔钱都知道自己去了哪</strong>。</p>
+              <span class="quad-slide__tag">Sprint 4 开门</span>
+            </div>
+          </div>
+        </section>
+
+      </div>
+
+      <!-- 底部时间线 -->
+      <div class="dash-timeline" aria-label="时间线">
+        <p class="dash-timeline__title">时间线</p>
+        <div class="dash-timeline__track">
+          <div class="dash-timeline__line"></div>
+          <div class="dash-timeline__node dash-timeline__node--today" style="left:8%">
+            <span class="dash-timeline__dot"></span>
+            <span class="dash-timeline__label">今天</span>
+          </div>
+          <div class="dash-timeline__node" style="left:36%">
+            <span class="dash-timeline__dot"></span>
+            <span class="dash-timeline__label">本周</span>
+          </div>
+          <div class="dash-timeline__node" style="left:64%">
+            <span class="dash-timeline__dot"></span>
+            <span class="dash-timeline__label">本月</span>
+          </div>
+          <div class="dash-timeline__node" style="left:92%">
+            <span class="dash-timeline__dot"></span>
+            <span class="dash-timeline__label">计划终点</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== 我的：LifeOS 板块入口 ===== -->
+    <div class="view" data-view="home">
       <header class="header">
         <h1 class="header__title">记录即存在</h1>
         <p class="header__subtitle">记录人生轨迹，让存在被看见</p>
@@ -189,6 +327,18 @@
                 </svg>
               </span>
             </div>
+          </div>
+
+          <!-- 板块四：统计 -->
+          <div class="card card--stats" data-module="stats" role="button" tabindex="0">
+            <span class="card__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M3 3v18h18"/>
+                <path d="M7 14l3-3 3 3 5-5"/>
+              </svg>
+            </span>
+            <h2 class="card__title">统计</h2>
+            <div class="card__desc"><span>数据看见努力</span></div>
           </div>
 
         </section>
@@ -1058,6 +1208,44 @@
       </div>
     </div>
 
+    <!-- ===== 快捷记录抽屉（＋） ===== -->
+    <div class="quick-sheet" id="quick-add-sheet" hidden>
+      <div class="quick-sheet__overlay" data-close-quick-add></div>
+      <div class="quick-sheet__panel" role="dialog" aria-label="快捷记录">
+        <h2 class="quick-sheet__title">想记点什么？</h2>
+        <button class="quick-sheet__item" type="button" data-quick="schedule">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <rect x="3" y="5" width="18" height="16" rx="2"/>
+            <path d="M8 3v4M16 3v4M3 10h18"/>
+          </svg>
+          <span>记日程</span>
+          <span class="quick-sheet__hint">Sprint 2 到岗</span>
+        </button>
+        <button class="quick-sheet__item" type="button" data-quick="sleep">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M20 12.5A8.5 8.5 0 1111.5 4a7 7 0 008.5 8.5z"/>
+          </svg>
+          <span>记睡眠</span>
+          <span class="quick-sheet__hint">Sprint 3 到岗</span>
+        </button>
+        <button class="quick-sheet__item" type="button" data-quick="note">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M12 3l1.9 5.6H20l-4.9 3.8 1.8 5.6-4.9-3.5-4.9 3.5 1.8-5.6L4.2 8.6h6z"/>
+          </svg>
+          <span>记灵感</span>
+          <span class="quick-sheet__hint">Sprint 4 到岗</span>
+        </button>
+        <button class="quick-sheet__item" type="button" data-quick="money">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <circle cx="12" cy="12" r="9"/>
+            <path d="M12 6v12M15 9.5c0-1.4-1.3-2.5-3-2.5s-3 1.1-3 2.5 1.3 2.5 3 2.5 3 1.1 3 2.5-1.3 2.5-3 2.5-3-1.1-3-2.5"/>
+          </svg>
+          <span>记一笔</span>
+          <span class="quick-sheet__hint">Sprint 4 到岗</span>
+        </button>
+      </div>
+    </div>
+
     <!-- 确认弹窗（删除二次确认） -->
     <div class="modal confirm-modal" id="confirm-modal" hidden>
       <div class="modal__overlay" data-close-confirm></div>
@@ -1085,6 +1273,11 @@
         <div class="theme-section">
           <p class="theme-section__title">预设主题</p>
           <div class="theme-grid" id="theme-grid">
+            <button class="theme-swatch" data-theme="blackgold" type="button">
+              <span class="theme-swatch__color" style="background:#0d0b08"></span>
+              <span class="theme-swatch__accent" style="background:#d4af37"></span>
+              <span class="theme-swatch__name">黑金</span>
+            </button>
             <button class="theme-swatch" data-theme="default" type="button">
               <span class="theme-swatch__color" style="background:#0c1222"></span>
               <span class="theme-swatch__accent" style="background:#38bdf8"></span>
@@ -1127,51 +1320,32 @@
       </div>
     </div>
 
-    <!-- 底部导航 -->
-    <nav class="nav" aria-label="底部导航">
-      <button class="nav__item nav__item--active" data-nav="home" aria-current="page">
+    <!-- 底部导航（首页 / ＋ / 我的） -->
+    <nav class="nav nav--fusion" aria-label="底部导航">
+      <button class="nav__item nav__item--active" data-nav="dashboard" aria-current="page">
         <span class="nav__icon" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <path d="M3 10.5L12 4l9 6.5V20a1 1 0 01-1 1H4a1 1 0 01-1-1v-9.5z"/>
+            <rect x="4" y="4" width="7" height="7" rx="1.5"/>
+            <rect x="13" y="4" width="7" height="7" rx="1.5"/>
+            <rect x="4" y="13" width="7" height="7" rx="1.5"/>
+            <rect x="13" y="13" width="7" height="7" rx="1.5"/>
           </svg>
         </span>
         <span class="nav__label">首页</span>
       </button>
-      <button class="nav__item" data-nav="goals">
-        <span class="nav__icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <circle cx="12" cy="12" r="9"/>
-            <circle cx="12" cy="12" r="5"/>
-            <circle cx="12" cy="12" r="1.5" fill="currentColor"/>
-          </svg>
-        </span>
-        <span class="nav__label">目标</span>
+      <button class="nav__plus" id="quick-add-btn" type="button" aria-label="快捷记录">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 5v14M5 12h14"/>
+        </svg>
       </button>
-      <button class="nav__item" data-nav="noble">
+      <button class="nav__item" data-nav="home">
         <span class="nav__icon" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7L12 17.8 5.7 21l2.3-7-6-4.6h7.6L12 2z"/>
+            <circle cx="12" cy="8" r="4"/>
+            <path d="M4 20c0-3.3 3.6-6 8-6s8 2.7 8 6"/>
           </svg>
         </span>
-        <span class="nav__label">贵人</span>
-      </button>
-      <button class="nav__item" data-nav="past">
-        <span class="nav__icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <circle cx="12" cy="12" r="9"/>
-            <path d="M12 7v5l3 3"/>
-          </svg>
-        </span>
-        <span class="nav__label">既往</span>
-      </button>
-      <button class="nav__item" data-nav="stats">
-        <span class="nav__icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <path d="M3 3v18h18"/>
-            <path d="M7 14l3-3 3 3 5-5"/>
-          </svg>
-        </span>
-        <span class="nav__label">统计</span>
+        <span class="nav__label">我的</span>
       </button>
     </nav>
     <footer class="footer">
@@ -1184,7 +1358,7 @@
   </div>
 
   <script src="https://imgcache.qq.com/open/qcloud/cloudbase-js-sdk/1.7.2/cloudbase.full.js"></script>
-  <script src="cloud.js?v=20260809c"></script>
-  <script src="app.js?v=20260809c"></script>
+  <script src="cloud.js?v=20260922a"></script>
+  <script src="app.js?v=20260922a"></script>
 </body>
 </html>

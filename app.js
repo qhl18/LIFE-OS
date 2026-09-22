@@ -268,6 +268,7 @@ function switchView(viewName) {
   if (viewName === 'stats') renderStats();
   if (viewName === 'home')  renderTodayPanel();
   if (viewName === 'companion') renderCompanion();
+  if (viewName === 'dashboard') renderDashboard();
   // 滚动到顶
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
@@ -7614,6 +7615,80 @@ function replayOnboarding() {
 }
 
 // ============================================================
+// 融合版仪表盘（Sprint 1：骨架 + 黑金皮肤）
+// ============================================================
+
+function renderDashboard() {
+  var now = new Date();
+  var weekdays = ['日', '一', '二', '三', '四', '五', '六'];
+  var dateEl = document.getElementById('dash-date');
+  if (dateEl) {
+    dateEl.textContent = (now.getMonth() + 1) + '月' + now.getDate() + '日 · 星期' + weekdays[now.getDay()];
+  }
+
+  var greetEl = document.getElementById('dash-greet');
+  if (greetEl) {
+    var h = now.getHours();
+    var greet;
+    if (h < 5)       greet = '夜深了';
+    else if (h < 9)  greet = '早上好';
+    else if (h < 12) greet = '上午好';
+    else if (h < 14) greet = '中午好';
+    else if (h < 18) greet = '下午好';
+    else              greet = '晚上好';
+    // 认识你，就带你名字打招呼
+    var profile = loadProfile();
+    if (profile && profile.name) {
+      greet += '，' + profile.name;
+    }
+    greetEl.textContent = greet;
+  }
+}
+
+function initDashboard() {
+  renderDashboard();
+
+  // 四宫格：滑动时同步小圆点
+  document.querySelectorAll('.quad-swipe').forEach(function(swipe) {
+    var panel = swipe.closest('.quad-panel');
+    var dots = panel ? panel.querySelectorAll('.quad-dot') : [];
+    if (dots.length === 0) return;
+    swipe.addEventListener('scroll', function() {
+      var idx = Math.round(swipe.scrollLeft / Math.max(swipe.clientWidth, 1));
+      dots.forEach(function(d, i) {
+        d.classList.toggle('quad-dot--active', i === idx);
+      });
+    });
+  });
+
+  // ＋ 快捷记录抽屉
+  var sheet = document.getElementById('quick-add-sheet');
+  var plusBtn = document.getElementById('quick-add-btn');
+  if (!sheet || !plusBtn) return;
+
+  plusBtn.addEventListener('click', function() {
+    sheet.hidden = false;
+  });
+  sheet.querySelectorAll('[data-close-quick-add]').forEach(function(el) {
+    el.addEventListener('click', function() { sheet.hidden = true; });
+  });
+
+  var SPRINT_HINT = {
+    schedule: 'Sprint 2',
+    sleep: 'Sprint 3',
+    note: 'Sprint 4',
+    money: 'Sprint 4'
+  };
+  sheet.querySelectorAll('.quick-sheet__item').forEach(function(item) {
+    item.addEventListener('click', function() {
+      sheet.hidden = true;
+      var sprint = SPRINT_HINT[item.dataset.quick] || '下个迭代';
+      showToast('还没到它出场的时候，' + sprint + ' 见', 'warning');
+    });
+  });
+}
+
+// ============================================================
 // 初始化
 // ============================================================
 
@@ -7647,6 +7722,7 @@ function init() {
     // 首次使用时不执行常规初始化（onboarding 完成后会刷新）
     // 但仍需绑定导航等基础交互
     bindBasicInteractions();
+    initDashboard();
     return;
   }
 
@@ -7654,6 +7730,7 @@ function init() {
   checkRetentionHook();
   checkReminders();
   bindBasicInteractions();
+  initDashboard();
 }
 
 function bindBasicInteractions() {
@@ -7836,11 +7913,30 @@ var THEMES = {
     '--bg-modal': '#1c1828',
     '--bg-overlay': 'rgba(19, 16, 26, 0.92)',
   },
+  blackgold: {
+    '--c-accent': '#d4af37',
+    '--c-accent-2': '#b8942f',
+    '--c-accent-soft': 'rgba(212, 175, 55, 0.14)',
+    '--bg-page': '#0d0b08',
+    '--bg-modal': '#191510',
+    '--bg-overlay': 'rgba(13, 11, 8, 0.94)',
+    '--nav-bg': 'rgba(13, 11, 8, 0.92)',
+    '--border': 'rgba(212, 175, 55, 0.10)',
+    '--border-strong': 'rgba(212, 175, 55, 0.22)',
+    '--bg-card': 'rgba(212, 175, 55, 0.04)',
+    '--bg-card-2': 'rgba(212, 175, 55, 0.08)',
+  },
 };
 
 function applyTheme(themeName) {
   var root = document.documentElement;
   var theme = THEMES[themeName] || THEMES.default;
+  // 先清掉所有主题可能写过的变量，避免换主题时残留上一个的颜色
+  Object.keys(THEMES).forEach(function(name) {
+    Object.keys(THEMES[name]).forEach(function(key) {
+      root.style.removeProperty(key);
+    });
+  });
   Object.keys(theme).forEach(function(key) {
     root.style.setProperty(key, theme[key]);
   });
@@ -7871,11 +7967,11 @@ function removePhotoBackground() {
 
 function loadTheme() {
   var saved = loadJSON(STORAGE_THEME, {});
-  // 应用预设主题
+  // 应用预设主题（黑金为融合版默认皮肤）
   if (saved.preset && THEMES[saved.preset]) {
     applyTheme(saved.preset);
   } else {
-    applyTheme('default');
+    applyTheme('blackgold');
   }
   // 应用照片背景
   if (saved.photo) {
