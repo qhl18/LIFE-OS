@@ -2,180 +2,1189 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>LifeOS - 记录即存在</title>
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="styles.css?v=20260809c">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
   <div class="bg-glow bg-glow--1" aria-hidden="true"></div>
 
+  <!-- ===== 首次使用引导 ===== -->
+  <div class="onboarding" id="onboarding" hidden>
+    <!-- 第一屏：钩子 -->
+    <div class="onboarding__screen onboarding__screen--active" data-screen="1">
+      <div class="onboarding__hook-lines">
+        <p class="onboarding__hook-line" style="animation-delay:0ms">过去30天，您还记得几天？</p>
+        <p class="onboarding__hook-line" style="animation-delay:500ms">大多数人只记得3天。</p>
+        <p class="onboarding__hook-line" style="animation-delay:1000ms">其余的27天，像没活过一样。</p>
+      </div>
+      <button class="btn btn--primary onboarding__cta" type="button" data-next-screen="2">我不甘心</button>
+    </div>
+
+    <!-- 第二屏：首个动作 -->
+    <div class="onboarding__screen" data-screen="2">
+      <div class="onboarding__action-content">
+        <label class="onboarding__question">现在，您脑子里最想要的那个东西是什么？</label>
+        <input type="text" class="onboarding__input" id="onboard-goal-name" placeholder="一个目标…" maxlength="40">
+        <input type="text" class="onboarding__input onboarding__input--optional" id="onboard-goal-why" placeholder="为什么想要（可选）" maxlength="60">
+        <button class="btn btn--primary onboarding__cta" type="button" id="onboard-record-btn">记下来</button>
+
+        <!-- 0% 环形进度条 + 撒花 -->
+        <div class="onboarding__ring-section" id="onboard-ring-section" hidden>
+          <div class="onboarding__ring-wrap">
+            <svg class="progress-ring onboarding__ring" viewBox="0 0 120 120">
+              <circle class="progress-ring__track" cx="60" cy="60" r="52" fill="none" stroke-width="8"/>
+              <circle class="progress-ring__fill" cx="60" cy="60" r="52" fill="none" stroke-width="8"
+                stroke-dasharray="326.7" stroke-dashoffset="326.7" transform="rotate(-90 60 60)"/>
+            </svg>
+            <span class="onboarding__ring-text">0%</span>
+          </div>
+          <p class="onboarding__ring-hint">这是0%。敢不敢看着它变成100%？</p>          <button class="btn btn--primary onboarding__cta" type="button" id="onboard-dare-btn">敢</button>
+        </div>
+
+        <!-- 怎么称呼你 -->
+        <div class="onboarding__name-section" id="onboard-name-section" hidden>
+          <label class="onboarding__question">怎么称呼您？</label>
+          <input type="text" class="onboarding__input" id="onboard-name" placeholder="您的名字" maxlength="20">
+          <button class="btn btn--primary onboarding__cta" type="button" data-next-screen="3">下一步</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 第三屏：地图与悬念 -->
+    <div class="onboarding__screen" data-screen="3">
+      <div class="onboarding__cards" id="onboard-cards">
+        <div class="onboarding__card onboarding__card--active" data-card="0">
+          <span class="onboarding__card-icon">🎯</span>
+          <p class="onboarding__card-text">您的每个目标都有达成概率，用您过去30天的真实节奏算出来的</p>
+          <p class="onboarding__card-title">个人目标</p>
+        </div>
+        <div class="onboarding__card" data-card="1">
+          <span class="onboarding__card-icon">⭐</span>
+          <p class="onboarding__card-text">每个对您好的人，都值得一颗星星</p>
+          <p class="onboarding__card-title">贵人如云</p>
+        </div>
+        <div class="onboarding__card" data-card="2">
+          <span class="onboarding__card-icon">📜</span>
+          <p class="onboarding__card-text">写给未来的信，钥匙交给时间或成就</p>
+          <p class="onboarding__card-title">既往也咎</p>
+        </div>
+      </div>
+      <!-- 手动切换控件 -->
+      <div class="onboarding__nav" id="onboard-card-nav">
+        <button class="onboarding__nav-btn onboarding__nav-btn--prev" id="onboard-card-prev" type="button" aria-label="上一张">‹</button>
+        <div class="onboarding__dots" id="onboard-card-dots">
+          <span class="onboarding__dot onboarding__dot--active" data-dot="0"></span>
+          <span class="onboarding__dot" data-dot="1"></span>
+          <span class="onboarding__dot" data-dot="2"></span>
+        </div>
+        <button class="onboarding__nav-btn onboarding__nav-btn--next" id="onboard-card-next" type="button" aria-label="下一张">›</button>
+      </div>
+      <div class="onboarding__final" id="onboard-final" hidden>
+        <p class="onboarding__final-text" id="onboard-final-text"></p>
+        <button class="btn btn--primary onboarding__cta onboarding__cta--enter" type="button" id="onboard-enter-btn">开始第一天</button>
+      </div>
+      <button class="onboarding__skip" type="button" id="onboard-skip-btn">跳过</button>
+    </div>
+
+    <!-- 撒花容器 -->
+    <div class="confetti-container" id="onboard-confetti" aria-hidden="true"></div>
+  </div>
+
+  <!-- ===== 智能提醒横幅容器 ===== -->
+  <div class="reminder-stack" id="reminder-stack" aria-live="polite"></div>
+
+  <!-- ===== 顶部用户栏 ===== -->
+  <div class="topbar" id="topbar">
+    <span class="topbar__brand">LifeOS</span>
+    <div class="topbar__right">
+      <span class="topbar__motto">记录即存在</span>
+      <button class="topbar__theme-btn" id="theme-btn" type="button" aria-label="皮肤设置" title="皮肤设置">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <circle cx="12" cy="12" r="9"/>
+          <path d="M12 3a9 9 0 000 18c1.1 0 2-.9 2-2 0-.5-.2-1-.5-1.3-.3-.4-.5-.8-.5-1.2 0-1 .9-1.8 2-1.8h2.5a4.5 4.5 0 004.5-4.5C21 6.5 17 3 12 3z"/>
+          <circle cx="7.5" cy="10.5" r="1" fill="currentColor"/>
+          <circle cx="12" cy="7.5" r="1" fill="currentColor"/>
+          <circle cx="16.5" cy="10.5" r="1" fill="currentColor"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+
   <div class="app">
-    <!-- 首页 -->
+    <!-- ===== 首页：三大板块 ===== -->
     <div class="view view--active" data-view="home">
       <header class="header">
-        <div class="header__badge">LifeOS</div>
         <h1 class="header__title">记录即存在</h1>
         <p class="header__subtitle">记录人生轨迹，让存在被看见</p>
       </header>
 
+      <!-- 今日面板 -->
+      <section class="today-panel" id="today-panel" aria-label="今日概览">
+        <!-- 动态注入 -->
+      </section>
+
       <main class="main">
         <section class="modules" aria-label="功能模块">
-          <a href="#" class="card" data-module="noble">
+
+          <!-- 板块一：个人目标 -->
+          <div class="card card--goal" data-module="goals" role="button" tabindex="0">
+            <span class="card__icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <circle cx="12" cy="12" r="9"/>
+                <circle cx="12" cy="12" r="5"/>
+                <circle cx="12" cy="12" r="1.5" fill="currentColor"/>
+              </svg>
+            </span>
+            <h2 class="card__title">个人目标</h2>
+            <div class="card__desc motto-wrap" data-key="motto_goals">
+              <span class="motto-text"></span>
+              <span class="motto-pencil" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+                  <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                </svg>
+              </span>
+            </div>
+          </div>
+
+          <!-- 板块二：贵人如云 -->
+          <div class="card card--noble" data-module="noble" role="button" tabindex="0">
             <span class="card__icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                 <path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7L12 17.8 5.7 21l2.3-7-6-4.6h7.6L12 2z"/>
               </svg>
             </span>
             <h2 class="card__title">贵人如云</h2>
-            <p class="card__desc">记录生命中的重要他人与缘分</p>
-          </a>
+            <div class="card__desc motto-wrap" data-key="motto_noble">
+              <span class="motto-text"></span>
+              <span class="motto-pencil" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+                  <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                </svg>
+              </span>
+            </div>
+          </div>
 
-          <a href="#" class="card" data-module="career">
-            <span class="card__icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                <rect x="3" y="7" width="18" height="13" rx="2"/>
-                <path d="M8 7V5a4 4 0 018 0v2"/>
-                <path d="M12 12v3"/>
-              </svg>
-            </span>
-            <h2 class="card__title">事业有成</h2>
-            <p class="card__desc">追踪职业成长与里程碑</p>
-          </a>
-
-          <a href="#" class="card" data-module="declutter">
-            <span class="card__icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/>
-                <path d="M10 11v6M14 11v6"/>
-              </svg>
-            </span>
-            <h2 class="card__title">断舍离</h2>
-            <p class="card__desc">整理物品与心结，轻装前行</p>
-          </a>
-
-          <a href="#" class="card" data-module="review">
+          <!-- 板块三：既往也咎 -->
+          <div class="card card--past" data-module="past" role="button" tabindex="0">
             <span class="card__icon" aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                 <circle cx="12" cy="12" r="9"/>
                 <path d="M12 7v5l3 3"/>
+                <path d="M3 12a9 9 0 1018 0"/>
               </svg>
             </span>
-            <h2 class="card__title">往事复盘</h2>
-            <p class="card__desc">回顾过往，提炼经验与感悟</p>
-          </a>
+            <h2 class="card__title">既往也咎</h2>
+            <div class="card__desc motto-wrap" data-key="motto_past">
+              <span class="motto-text"></span>
+              <span class="motto-pencil" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+                  <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+                </svg>
+              </span>
+            </div>
+          </div>
 
-          <a href="#" class="card card--wide" data-module="legacy">
-            <span class="card__icon" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                <path d="M4 19.5A2.5 2.5 0 016.5 17H20"/>
-                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/>
-                <path d="M8 7h8M8 11h6"/>
-              </svg>
-            </span>
-            <h2 class="card__title">数字遗产</h2>
-            <p class="card__desc">规划数字资产与传承意愿</p>
-          </a>
         </section>
+
+        <!-- 同行者入口 -->
+        <div class="card card--companion" data-module="companion" role="button" tabindex="0">
+          <span class="card__icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+              <circle cx="9" cy="12" r="6"/>
+              <circle cx="15" cy="12" r="6"/>
+            </svg>
+          </span>
+          <h2 class="card__title">同行者</h2>
+          <div class="card__desc">
+            <span class="companion-status" id="companion-status-text">一个人也可以走，两个人走得更远</span>
+          </div>
+        </div>
       </main>
     </div>
 
-    <!-- 打卡 / 记录页 -->
-    <div class="view" data-view="log">
+    <!-- ===== 个人目标页 ===== -->
+    <div class="view" data-view="goals">
       <header class="page-header">
-        <h1 class="page-header__title">今日记录</h1>
-        <p class="page-header__subtitle">写下今天做了什么，积累技能经验</p>
+        <button class="btn btn--ghost btn--back" data-back="home">← 返回</button>
+        <h1 class="page-header__title">个人目标</h1>
+        <div class="page-header__subtitle motto-wrap" data-key="motto_goals">
+          <span class="motto-text"></span>
+          <span class="motto-pencil" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+              <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+            </svg>
+          </span>
+        </div>
       </header>
 
-      <section class="log-form" aria-label="打卡表单">
-        <label class="sr-only" for="log-input">今天做了什么</label>
-        <textarea
-          id="log-input"
-          class="log-form__input"
-          rows="4"
-          placeholder="例如：学习了 Python 的 NumPy 库"
-        ></textarea>
-        <button type="button" id="log-submit" class="btn btn--primary">记录</button>
+      <!-- 概念教学条 -->
+      <div class="goal-teaching-bar" id="goal-teaching-bar" hidden>
+        <div class="goal-teaching-bar__content">
+          <span class="goal-teaching-bar__icon">💡</span>
+          <p class="goal-teaching-bar__text">大目标没法天天量进度。『考上名校』是方向不是进度条——把它拆成每天能做的小事，进度条才真正动起来。点新建目标里的「帮我拆解」试试。</p>
+        </div>
+        <button class="goal-teaching-bar__close" id="teaching-bar-close" type="button" aria-label="关闭教学条">×</button>
+      </div>
+
+      <!-- 目标列表 -->
+      <section class="goal-list" id="goal-list" aria-label="目标列表">
+        <!-- 空状态动态注入 -->
       </section>
 
-      <section class="log-history" aria-label="历史记录">
-        <h2 class="section-title">历史记录</h2>
-        <ul id="log-list" class="log-list"></ul>
-        <p id="log-empty" class="empty-hint">暂无记录，写下第一条吧</p>
+      <!-- 添加目标按钮 -->
+      <button class="fab" id="goal-add-btn" aria-label="添加目标">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 5v14M5 12h14"/>
+        </svg>
+      </button>
+
+      <!-- 完成殿堂 -->
+      <section class="hall" id="goal-hall" aria-label="完成殿堂" hidden>
+        <h2 class="section-title">完成殿堂</h2>
+        <div class="hall__list" id="hall-list"></div>
       </section>
+
+      <!-- 添加/编辑目标弹窗 -->
+      <div class="modal" id="goal-modal" hidden>
+        <div class="modal__overlay" data-close-modal></div>
+        <div class="modal__panel">
+          <div class="modal__title-row">
+            <h2 class="modal__title" id="goal-modal-title">新建目标</h2>
+            <div class="modal__title-actions">
+              <button type="button" class="btn btn--ghost btn--small" id="goal-decompose-btn">🧩 帮我拆解</button>
+              <button type="button" class="btn btn--ghost btn--small" id="goal-template-btn">📋 模板</button>
+            </div>
+          </div>
+          <p class="decompose-hint" id="decompose-hint">大目标拆小了，才好天天打卡</p>
+          <form id="goal-form" class="modal__form" novalidate>
+            <input type="hidden" name="editId" id="goal-edit-id">
+            <label class="field">
+              <span class="field__label">目标名称</span>
+              <input type="text" name="name" class="field__input" placeholder="例如：背完3500词" required>
+              <span class="field__error"></span>
+            </label>
+            <label class="field">
+              <span class="field__label">一句为什么（动机）</span>
+              <input type="text" name="why" class="field__input" placeholder="为什么这个目标对你重要？">
+            </label>
+            <label class="field">
+              <span class="field__label">目标类型</span>
+              <select name="type" class="field__input" id="goal-type-select">
+                <option value="cumulative">累计型（从0数到N，如背3500词）</option>
+                <option value="habit">习惯型（周期重复，如每周健身3次）</option>
+                <option value="milestone">里程碑型（天然分阶段，如考研一轮/二轮/真题/模拟）</option>
+                <option value="value">数值型（从A变到B，如体重60→52kg）</option>
+              </select>
+            </label>
+
+            <!-- 累计型 / 数值型共用：目标值 + 起始值 -->
+            <div class="field-row" id="field-target-row">
+              <label class="field">
+                <span class="field__label" id="lbl-target">目标值</span>
+                <input type="number" name="target" class="field__input" value="100" min="1" step="any">
+              </label>
+              <label class="field" id="field-start">
+                <span class="field__label">起始值</span>
+                <input type="number" name="startVal" class="field__input" value="0" step="any">
+              </label>
+            </div>
+
+            <!-- 习惯型专用：每周次数 -->
+            <label class="field" id="field-weekly" hidden>
+              <span class="field__label">每周目标次数（1~7）</span>
+              <input type="number" name="weeklyTarget" class="field__input" value="3" min="1" max="7" step="1">
+            </label>
+
+            <label class="field" id="field-unit">
+              <span class="field__label">单位</span>
+              <input type="text" name="unit" class="field__input" placeholder="个/次/本/kg…" value="个">
+            </label>
+
+            <label class="field" id="field-monthly-deposit" hidden>
+              <span class="field__label">每月定额（存钱类可选）</span>
+              <input type="number" name="monthlyDeposit" class="field__input" placeholder="如：2000" min="0" step="any">
+              <span class="field__hint">填了之后，快捷按钮会按这个定额估算，节奏判断也会按月算</span>
+            </label>
+
+            <label class="field">
+              <span class="field__label">截止日期</span>
+              <input type="date" name="deadline" class="field__input">
+            </label>
+
+            <!-- 与同行者一起做（仅累计型/习惯型 + 已连接同行者时显示） -->
+            <div class="field" id="field-shared-goal" hidden>
+              <label class="toggle-row">
+                <input type="checkbox" name="isSharedGoal" id="goal-shared-checkbox">
+                <span class="toggle-row__text">
+                  <span class="toggle-row__label">与同行者一起做</span>
+                  <span class="toggle-row__hint">两个人往同一个水池里灌，进度加在一起算</span>
+                </span>
+              </label>
+            </div>
+
+            <!-- 快捷按钮预览 + 自定义 -->
+            <div class="field" id="quick-btn-field">
+              <button type="button" class="quick-btn-preview" id="quick-btn-preview">快捷按钮：自动估算</button>
+              <div class="quick-btn-custom" id="quick-btn-custom" hidden>
+                <span class="quick-btn-custom__label">自定义三个快捷值（留空则自动）</span>
+                <div class="quick-btn-custom__inputs">
+                  <input type="number" class="field__input quick-btn-custom-input" placeholder="0.5x" min="0" step="any">
+                  <input type="number" class="field__input quick-btn-custom-input" placeholder="1x" min="0" step="any">
+                  <input type="number" class="field__input quick-btn-custom-input" placeholder="2x" min="0" step="any">
+                </div>
+              </div>
+            </div>
+
+            <!-- 里程碑编辑区 -->
+            <div class="field milestone-editor" id="milestone-editor" hidden>
+              <span class="field__label">里程碑列表（每行一个）</span>
+              <textarea name="milestones" class="field__input" rows="4" placeholder="一轮复习&#10;二轮复习&#10;真题训练&#10;模拟考试"></textarea>
+            </div>
+
+            <!-- 打卡字段配置 -->
+            <div class="field" id="checkin-fields-config">
+              <span class="field__label">打卡时还要记录什么</span>
+              <div class="fields-config-list" id="fields-config-list"></div>
+              <div class="fields-config-add">
+                <button type="button" class="btn btn--ghost btn--small" data-add-field="number">+ 数字型</button>
+                <button type="button" class="btn btn--ghost btn--small" data-add-field="choice">+ 单选型</button>
+                <button type="button" class="btn btn--ghost btn--small" data-add-field="text">+ 一句话型</button>
+              </div>
+            </div>
+
+            <div class="modal__actions">
+              <button type="button" class="btn btn--ghost" data-close-modal>取消</button>
+              <button type="button" class="btn btn--ghost btn--small" id="save-as-template-btn">📦 存为我的模板</button>
+              <button type="submit" class="btn btn--primary" id="goal-submit-btn">创建</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- 目标详情弹窗 -->
+      <div class="modal" id="goal-detail-modal" hidden>
+        <div class="modal__overlay" data-close-detail></div>
+        <div class="modal__panel modal__panel--wide">
+          <div id="goal-detail-content"></div>
+        </div>
+      </div>
+
+      <!-- 拆解向导弹窗 -->
+      <div class="modal decompose-wizard" id="decompose-modal" hidden>
+        <div class="modal__overlay" data-close-decompose></div>
+        <div class="modal__panel">
+          <div class="decompose-wizard__header">
+            <h2 class="modal__title" id="decompose-title">帮我拆解</h2>
+            <div class="decompose-wizard__steps">
+              <span class="decompose-step-dot decompose-step-dot--active" data-step-dot="1"></span>
+              <span class="decompose-step-dot" data-step-dot="2"></span>
+              <span class="decompose-step-dot" data-step-dot="3"></span>
+            </div>
+          </div>
+
+          <!-- 第1步 -->
+          <div class="decompose-step decompose-step--active" data-decompose-step="1">
+            <label class="field">
+              <span class="field__label">您最终想要什么？</span>
+              <input type="text" class="field__input" id="decompose-result" placeholder="说结果就行，不用管能不能量化">
+            </label>
+            <p class="decompose-guide">说结果就行，不用管能不能量化，如：考上名校、存够10万、练出薄肌</p>
+            <div class="decompose-examples">
+              <button type="button" class="decompose-example-chip" data-fill="考上名校">考上名校</button>
+              <button type="button" class="decompose-example-chip" data-fill="存够10万">存够10万</button>
+              <button type="button" class="decompose-example-chip" data-fill="练出薄肌">练出薄肌</button>
+              <button type="button" class="decompose-example-chip" data-fill="转行程序员">转行程序员</button>
+            </div>
+          </div>
+
+          <!-- 第2步 -->
+          <div class="decompose-step" data-decompose-step="2" hidden>
+            <label class="field">
+              <span class="field__label">什么能证明您在靠近它？</span>
+              <div class="decompose-multi-input" id="decompose-milestones">
+                <input type="text" class="field__input decompose-milestone-input" placeholder="可测量的关卡1" maxlength="40">
+                <input type="text" class="field__input decompose-milestone-input" placeholder="可测量的关卡2（选填）" maxlength="40">
+                <input type="text" class="field__input decompose-milestone-input" placeholder="可测量的关卡3（选填）" maxlength="40">
+              </div>
+            </label>
+            <p class="decompose-guide">填1~3个可测量的关卡，如：真题130分、存款到5万、体脂到15%</p>
+            <div class="decompose-examples">
+              <button type="button" class="decompose-example-chip" data-fill="分数达标">分数达标</button>
+              <button type="button" class="decompose-example-chip" data-fill="存到5万">存到5万</button>
+              <button type="button" class="decompose-example-chip" data-fill="体脂到15%">体脂到15%</button>
+              <button type="button" class="decompose-example-chip" data-fill="考过证书">考过证书</button>
+              <button type="button" class="decompose-example-chip" data-fill="做出作品">做出作品</button>
+            </div>
+            <p class="decompose-skip-hint">不想填可以跳过——点「下一步」即可</p>
+          </div>
+
+          <!-- 第3步 -->
+          <div class="decompose-step" data-decompose-step="3" hidden>
+            <label class="field">
+              <span class="field__label">每天能做什么换来它？</span>
+              <div class="decompose-multi-input" id="decompose-actions">
+                <input type="text" class="field__input decompose-action-input" placeholder="每天能做的事1" maxlength="40">
+                <input type="text" class="field__input decompose-action-input" placeholder="每天能做的事2（选填）" maxlength="40">
+              </div>
+            </label>
+            <p class="decompose-guide">结果您控制不了，行为100%归您管，如：每天学2小时、每月存2000、每周练3次</p>
+            <div class="decompose-examples">
+              <button type="button" class="decompose-example-chip" data-fill="每天学习2小时">每天学习2小时</button>
+              <button type="button" class="decompose-example-chip" data-fill="每周锻炼3次">每周锻炼3次</button>
+              <button type="button" class="decompose-example-chip" data-fill="每月存2000元">每月存2000元</button>
+              <button type="button" class="decompose-example-chip" data-fill="每天写500字">每天写500字</button>
+            </div>
+            <p class="decompose-skip-hint">不想填可以跳过——点「完成拆解」即可</p>
+          </div>
+
+          <div class="decompose-wizard__actions">
+            <button type="button" class="btn btn--ghost" id="decompose-cancel" data-close-decompose>取消</button>
+            <button type="button" class="btn btn--ghost" id="decompose-back" hidden>上一步</button>
+            <button type="button" class="btn btn--primary" id="decompose-next">下一步</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Coach marks 覆盖层 -->
+      <div class="coach-overlay" id="coach-overlay" hidden>
+        <div class="coach-mask" id="coach-mask"></div>
+        <div class="coach-bubble" id="coach-bubble">
+          <p class="coach-bubble__text" id="coach-text"></p>
+          <div class="coach-bubble__actions">
+            <span class="coach-bubble__step" id="coach-step-label">1 / 3</span>
+            <button type="button" class="btn btn--primary btn--small" id="coach-next-btn">知道了</button>
+          </div>
+        </div>
+      </div>
     </div>
 
-    <!-- 统计 / 技能树页 -->
+    <!-- ===== 贵人如云页 ===== -->
+    <div class="view" data-view="noble">
+      <header class="page-header">
+        <button class="btn btn--ghost btn--back" data-back="home">← 返回</button>
+        <h1 class="page-header__title">贵人如云</h1>
+        <div class="page-header__subtitle motto-wrap" data-key="motto_noble">
+          <span class="motto-text"></span>
+          <span class="motto-pencil" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+              <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+            </svg>
+          </span>
+        </div>
+      </header>
+
+      <div class="panel-bar" id="noble-filter-bar">
+        <select id="noble-relation-filter" class="field__input field__input--inline">
+          <option value="">全部关系</option>
+          <option value="家人">家人</option>
+          <option value="挚友">挚友</option>
+          <option value="导师">导师</option>
+          <option value="爱人">爱人</option>
+          <option value="一面之缘">一面之缘</option>
+        </select>
+      </div>
+
+      <section class="noble-list" id="noble-list" aria-label="贵人列表">
+        <!-- 空状态动态注入 -->
+      </section>
+
+      <button class="fab" id="noble-add-btn" aria-label="添加贵人">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 5v14M5 12h14"/>
+        </svg>
+      </button>
+
+      <!-- 添加/编辑贵人弹窗 -->
+      <div class="modal" id="noble-modal" hidden>
+        <div class="modal__overlay" data-close-noble-modal></div>
+        <div class="modal__panel">
+          <h2 class="modal__title" id="noble-modal-title">添加贵人</h2>
+          <form id="noble-form" class="modal__form" novalidate>
+            <input type="hidden" name="editId" id="noble-edit-id">
+            <label class="field">
+              <span class="field__label">名字</span>
+              <input type="text" name="name" class="field__input" placeholder="TA的名字" required>
+              <span class="field__error"></span>
+            </label>
+            <label class="field">
+              <span class="field__label">关系</span>
+              <select name="relation" class="field__input" id="noble-relation-select">
+                <option value="家人">家人</option>
+                <option value="挚友">挚友</option>
+                <option value="导师">导师</option>
+                <option value="爱人">爱人</option>
+                <option value="一面之缘">一面之缘</option>
+                <option value="custom">自定义…</option>
+              </select>
+            </label>
+            <label class="field" id="noble-relation-custom" hidden>
+              <span class="field__label">自定义关系</span>
+              <input type="text" name="relationCustom" class="field__input" placeholder="例如：战友、同窗…">
+            </label>
+            <div class="field-row">
+              <label class="field">
+                <span class="field__label">初识日期</span>
+                <input type="date" name="metDate" class="field__input">
+              </label>
+              <label class="field">
+                <span class="field__label">生日（可选）</span>
+                <input type="date" name="birthday" class="field__input">
+              </label>
+            </div>
+            <label class="field">
+              <span class="field__label">相识场景</span>
+              <input type="text" name="metScene" class="field__input" placeholder="一句话，如"图书馆偶遇"">
+            </label>
+            <label class="field">
+              <span class="field__label">备注</span>
+              <textarea name="note" class="field__input" rows="2" placeholder="关于TA的补充信息"></textarea>
+            </label>
+            <div class="modal__actions">
+              <button type="button" class="btn btn--ghost" data-close-noble-modal>取消</button>
+              <button type="submit" class="btn btn--primary" id="noble-submit-btn">添加</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- 贵人详情弹窗 -->
+      <div class="modal" id="noble-detail-modal" hidden>
+        <div class="modal__overlay" data-close-noble-detail></div>
+        <div class="modal__panel modal__panel--wide">
+          <div id="noble-detail-content"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== 既往也咎页 ===== -->
+    <div class="view" data-view="past">
+      <header class="page-header">
+        <button class="btn btn--ghost btn--back" data-back="home">← 返回</button>
+        <h1 class="page-header__title">既往也咎</h1>
+        <div class="page-header__subtitle motto-wrap" data-key="motto_past">
+          <span class="motto-text"></span>
+          <span class="motto-pencil" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
+              <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
+            </svg>
+          </span>
+        </div>
+      </header>
+
+      <!-- 子导航 -->
+      <div class="tabs">
+        <button class="tab tab--active" data-tab="timeline">人生时间线</button>
+        <button class="tab" data-tab="lessons">教训库</button>
+        <button class="tab" data-tab="review" id="tab-review">复盘</button>
+        <button class="tab" data-tab="daily">每日一句</button>
+        <button class="tab" data-tab="capsule">时光胶囊</button>
+        <button class="tab-settings" id="review-settings-btn" type="button" aria-label="复盘设置" title="复盘设置">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- 时间线 -->
+      <section class="tab-panel tab-panel--active" data-panel="timeline">
+        <div class="panel-bar">
+          <select id="timeline-year-filter" class="field__input field__input--inline">
+            <option value="">全部年份</option>
+          </select>
+          <button class="btn btn--primary btn--small" id="add-timeline-btn">添加节点</button>
+        </div>
+        <ul class="past-timeline" id="past-timeline">
+          <!-- 空状态动态注入 -->
+        </ul>
+      </section>
+
+      <!-- 教训库 -->
+      <section class="tab-panel" data-panel="lessons">
+        <div class="panel-bar">
+          <select id="lesson-tag-filter" class="field__input field__input--inline">
+            <option value="">全部标签</option>
+          </select>
+          <button class="btn btn--primary btn--small" id="add-lesson-btn">添加教训</button>
+        </div>
+        <div class="lesson-list" id="lesson-list">
+          <!-- 空状态动态注入 -->
+        </div>
+      </section>
+
+      <!-- 复盘 -->
+      <section class="tab-panel" data-panel="review">
+        <div class="review-subtabs" id="review-subtabs">
+          <button class="review-subtab review-subtab--active" data-rtype="day" type="button">日复盘</button>
+          <button class="review-subtab" data-rtype="week" type="button">周复盘</button>
+          <button class="review-subtab" data-rtype="month" type="button">月复盘</button>
+        </div>
+        <div class="panel-bar">
+          <span class="review-current-label" id="review-current-label"></span>
+          <button class="btn btn--primary btn--small" id="add-review-btn">新建复盘</button>
+        </div>
+        <div class="review-list" id="review-list">
+          <!-- 空状态动态注入 -->
+        </div>
+      </section>
+
+      <!-- 每日一句 -->
+      <section class="tab-panel" data-panel="daily">
+        <div class="daily-input-area" id="daily-input-area">
+          <!-- 动态注入 -->
+        </div>
+        <div class="daily-list" id="daily-list">
+          <!-- 空状态动态注入 -->
+        </div>
+      </section>
+
+      <!-- 时光胶囊 -->
+      <section class="tab-panel" data-panel="capsule">
+        <div class="panel-bar">
+          <span class="capsule-intro">写给未来的信，钥匙交给时间</span>
+          <button class="btn btn--primary btn--small" id="add-capsule-btn">写一封</button>
+        </div>
+        <div class="capsule-list" id="capsule-list">
+          <!-- 空状态动态注入 -->
+        </div>
+      </section>
+
+      <!-- 时光胶囊弹窗 -->
+      <div class="modal" id="capsule-modal" hidden>
+        <div class="modal__overlay" data-close-capsule-modal></div>
+        <div class="modal__panel">
+          <h2 class="modal__title" id="capsule-modal-title">写给未来的信</h2>
+          <form id="capsule-form" class="modal__form" novalidate>
+            <input type="hidden" name="editId" id="capsule-edit-id">
+            <label class="field">
+              <span class="field__label">标题（给未来的自己一个线索）</span>
+              <input type="text" name="title" class="field__input" placeholder="例如：一年后的你" maxlength="40" required>
+              <span class="field__error"></span>
+            </label>
+            <label class="field">
+              <span class="field__label">正文</span>
+              <textarea name="content" class="field__input" rows="5" placeholder="想对未来的自己说什么…" required></textarea>
+              <span class="field__error"></span>
+            </label>
+            <label class="field">
+              <span class="field__label">解锁日期</span>
+              <input type="date" name="unlockDate" class="field__input" required>
+              <span class="field__error"></span>
+            </label>
+            <p class="capsule-hint">在解锁日期之前，你只能看到标题，看不到正文</p>
+            <div class="modal__actions">
+              <button type="button" class="btn btn--ghost" data-close-capsule-modal>取消</button>
+              <button type="submit" class="btn btn--primary" id="capsule-submit-btn">封存</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- 时光胶囊查看弹窗 -->
+      <div class="modal" id="capsule-view-modal" hidden>
+        <div class="modal__overlay" data-close-capsule-view></div>
+        <div class="modal__panel">
+          <div id="capsule-view-content"></div>
+        </div>
+      </div>
+
+      <!-- 时间线添加/编辑弹窗 -->
+      <div class="modal" id="timeline-modal" hidden>
+        <div class="modal__overlay" data-close-timeline-modal></div>
+        <div class="modal__panel">
+          <h2 class="modal__title" id="timeline-modal-title">添加人生节点</h2>
+          <form id="timeline-form" class="modal__form" novalidate>
+            <input type="hidden" name="editId" id="timeline-edit-id">
+            <label class="field">
+              <span class="field__label">日期</span>
+              <input type="date" name="date" class="field__input" required>
+              <span class="field__error"></span>
+            </label>
+            <label class="field">
+              <span class="field__label">标题</span>
+              <input type="text" name="title" class="field__input" placeholder="一句话概括" required>
+              <span class="field__error"></span>
+            </label>
+            <label class="field">
+              <span class="field__label">情绪标记</span>
+              <select name="mood" class="field__input">
+                <option value="highlight">高光</option>
+                <option value="low">低谷</option>
+                <option value="turning">转折</option>
+                <option value="ordinary">平凡</option>
+              </select>
+            </label>
+            <label class="field">
+              <span class="field__label">详细描述</span>
+              <textarea name="desc" class="field__input" rows="3" placeholder="发生了什么？"></textarea>
+            </label>
+            <div class="modal__actions">
+              <button type="button" class="btn btn--ghost" data-close-timeline-modal>取消</button>
+              <button type="submit" class="btn btn--primary" id="timeline-submit-btn">添加</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- 教训添加/编辑弹窗 -->
+      <div class="modal" id="lesson-modal" hidden>
+        <div class="modal__overlay" data-close-lesson-modal></div>
+        <div class="modal__panel">
+          <h2 class="modal__title" id="lesson-modal-title">添加教训</h2>
+          <form id="lesson-form" class="modal__form" novalidate>
+            <input type="hidden" name="editId" id="lesson-edit-id">
+            <label class="field">
+              <span class="field__label">踩过的坑</span>
+              <textarea name="pit" class="field__input" rows="2" placeholder="什么事搞砸了？" required></textarea>
+              <span class="field__error"></span>
+            </label>
+            <label class="field">
+              <span class="field__label">付出的代价</span>
+              <input type="text" name="cost" class="field__input" placeholder="时间/金钱/感情…">
+            </label>
+            <label class="field">
+              <span class="field__label">学到的一句话</span>
+              <input type="text" name="lesson" class="field__input" placeholder="如果只能记一句话…">
+            </label>
+            <label class="field">
+              <span class="field__label">标签</span>
+              <select name="tag" class="field__input" id="lesson-tag-select">
+                <option value="学业">学业</option>
+                <option value="感情">感情</option>
+                <option value="金钱">金钱</option>
+                <option value="健康">健康</option>
+                <option value="custom">+ 自定义</option>
+              </select>
+            </label>
+            <label class="field" id="lesson-tag-custom-field" hidden>
+              <span class="field__label">自定义标签</span>
+              <input type="text" name="tagCustom" class="field__input" placeholder="输入新标签名">
+            </label>
+            <div class="modal__actions">
+              <button type="button" class="btn btn--ghost" data-close-lesson-modal>取消</button>
+              <button type="submit" class="btn btn--primary" id="lesson-submit-btn">添加</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- 复盘弹窗 -->
+      <div class="modal" id="review-modal" hidden>
+        <div class="modal__overlay" data-close-review-modal></div>
+        <div class="modal__panel">
+          <h2 class="modal__title" id="review-modal-title">新建复盘</h2>
+          <form id="review-form" class="modal__form" novalidate>
+            <input type="hidden" name="editId" id="review-edit-id">
+            <input type="hidden" name="type" id="review-type-hidden" value="day">
+            <label class="field" id="review-date-field">
+              <span class="field__label" id="review-date-label">日期</span>
+              <input type="date" name="date" class="field__input" id="review-date-input" required>
+              <span class="field__error"></span>
+            </label>
+            <label class="field" id="review-month-field" hidden>
+              <span class="field__label">月份</span>
+              <input type="month" name="month" class="field__input" id="review-month-input">
+              <span class="field__error"></span>
+            </label>
+            <label class="field">
+              <span class="field__label" id="review-q1-label">做成了什么</span>
+              <textarea name="success" class="field__input" rows="2"></textarea>
+            </label>
+            <label class="field">
+              <span class="field__label" id="review-q2-label">搞砸了什么</span>
+              <textarea name="fail" class="field__input" rows="2"></textarea>
+            </label>
+            <label class="field">
+              <span class="field__label" id="review-q3-label">明天最重要的一件事</span>
+              <input type="text" name="priority" class="field__input">
+            </label>
+            <div class="modal__actions">
+              <button type="button" class="btn btn--ghost" data-close-review-modal>取消</button>
+              <button type="submit" class="btn btn--primary" id="review-submit-btn">保存</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== 统计页 ===== -->
     <div class="view" data-view="stats">
       <header class="page-header">
-        <h1 class="page-header__title">技能树</h1>
-        <p class="page-header__subtitle">记录越多，成长越快 · <a href="dashboard.html" style="color:#38bdf8;text-decoration:none;">数据看板</a></p>
+        <button class="btn btn--ghost btn--back" data-back="home">← 返回</button>
+        <h1 class="page-header__title">统计</h1>
+        <p class="page-header__subtitle">数据看见努力</p>
       </header>
 
-      <section class="skill-tree" id="skill-tree" aria-label="技能经验值"></section>
+      <!-- 数字总览 -->
+      <section class="stats-overview" id="stats-overview" aria-label="数字总览">
+        <!-- 动态注入 -->
+      </section>
+
+      <!-- 打卡热力图 -->
+      <section class="stats-section" aria-label="打卡热力图">
+        <h2 class="section-title" style="margin-top:0">打卡热力图</h2>
+        <div class="heatmap-wrap" id="heatmap-wrap">
+          <!-- 动态注入 -->
+        </div>
+        <div class="heatmap-legend">
+          <span class="heatmap-legend__text">少</span>
+          <span class="heatmap-cell heatmap-cell--0"></span>
+          <span class="heatmap-cell heatmap-cell--1"></span>
+          <span class="heatmap-cell heatmap-cell--2"></span>
+          <span class="heatmap-cell heatmap-cell--3"></span>
+          <span class="heatmap-cell heatmap-cell--4"></span>
+          <span class="heatmap-legend__text">多</span>
+        </div>
+      </section>
+
+      <!-- 人生K线图 -->
+      <section class="stats-section" aria-label="人生K线图">
+        <h2 class="section-title" style="margin-top:0">你的人生走势</h2>
+        <p class="kline-subtitle">高开低走不可怕，怕的是停牌——没有记录的月份不生成K线</p>
+        <div class="kline-wrap" id="kline-wrap">
+          <canvas id="kline-canvas"></canvas>
+          <div class="kline-empty" id="kline-empty" hidden></div>
+        </div>
+        <div class="kline-detail" id="kline-detail">
+          <p class="kline-detail__hint">点击某根K线查看当月摘要</p>
+        </div>
+        <p class="kline-disclaimer">本图测量的是被记录的心境，不是真实心境——看趋势，别抠单月</p>
+      </section>
+
+      <!-- 目标进度排行 -->
+      <section class="stats-section" aria-label="目标进度排行">
+        <h2 class="section-title">目标进度排行</h2>
+        <div class="rank-list" id="rank-list">
+          <!-- 动态注入 -->
+        </div>
+      </section>
     </div>
 
-    <!-- 设置页占位 -->
-    <div class="view" data-view="settings">
+    <!-- ===== 同行者页 ===== -->
+    <div class="view" data-view="companion">
       <header class="page-header">
-        <h1 class="page-header__title">设置</h1>
-        <p class="page-header__subtitle">即将推出</p>
+        <button class="btn btn--ghost btn--back" data-back="home">← 返回</button>
+        <h1 class="page-header__title">同行者</h1>
+        <p class="page-header__subtitle" id="companion-subtitle">连接是信任，信任由您划边界</p>
       </header>
+
+      <section class="companion-content" id="companion-content">
+        <!-- 动态注入 -->
+      </section>
     </div>
 
+    <!-- ===== 同行者连接弹窗 ===== -->
+    <div class="modal" id="companion-connect-modal" hidden>
+      <div class="modal__overlay" data-close-companion-connect></div>
+      <div class="modal__panel">
+        <h2 class="modal__title">同行者</h2>
+        <p class="companion-connect__hint">找一个也在努力的人，用暗号连上</p>
+        <div class="companion-connect__actions">
+          <button type="button" class="btn btn--primary companion-connect__btn" id="companion-create-btn">
+            <span class="companion-connect__btn-icon">✦</span>
+            <span>创建暗号</span>
+            <span class="companion-connect__btn-hint">生成一个四字暗号给对方</span>
+          </button>
+          <button type="button" class="btn btn--ghost companion-connect__btn" id="companion-join-btn">
+            <span class="companion-connect__btn-icon">✧</span>
+            <span>输入暗号</span>
+            <span class="companion-connect__btn-hint">输入对方给你的四字暗号</span>
+          </button>
+        </div>
+        <div class="modal__actions">
+          <button type="button" class="btn btn--ghost" data-close-companion-connect>关闭</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== 暗号创建等待弹窗 ===== -->
+    <div class="modal" id="companion-waiting-modal" hidden>
+      <div class="modal__overlay" data-close-companion-waiting></div>
+      <div class="modal__panel">
+        <h2 class="modal__title">等待对方加入</h2>
+        <div class="companion-waiting__code-area">
+          <p class="companion-waiting__label">把这个暗号告诉TA</p>
+          <div class="companion-waiting__code" id="companion-waiting-code">----</div>
+          <p class="companion-waiting__expire">24小时内有效，超时自动失效</p>
+        </div>
+        <div class="companion-waiting__status" id="companion-waiting-status">
+          <span class="companion-waiting__spinner"></span>
+          <span>等着TA输入暗号…</span>
+        </div>
+        <div class="modal__actions">
+          <button type="button" class="btn btn--ghost" id="companion-cancel-waiting">取消</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== 暗号输入弹窗 ===== -->
+    <div class="modal" id="companion-join-input-modal" hidden>
+      <div class="modal__overlay" data-close-companion-join></div>
+      <div class="modal__panel">
+        <h2 class="modal__title">输入暗号</h2>
+        <p class="companion-join__hint">输入对方给你的四字暗号</p>
+        <label class="field">
+          <input type="text" class="field__input companion-join__input" id="companion-join-code" placeholder="如：山河故人" maxlength="4" autocomplete="off">
+          <span class="field__error" id="companion-join-error"></span>
+        </label>
+        <div class="modal__actions">
+          <button type="button" class="btn btn--ghost" data-close-companion-join>取消</button>
+          <button type="button" class="btn btn--primary" id="companion-join-confirm">连接</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== 共享设置弹窗 ===== -->
+    <div class="modal" id="share-settings-modal" hidden>
+      <div class="modal__overlay" data-close-share-settings></div>
+      <div class="modal__panel modal__panel--wide">
+        <h2 class="modal__title">共享设置</h2>
+        <p class="share-settings__top-hint">连接是信任，但信任由您划边界，随时可以回来改</p>
+        <div class="share-settings__list" id="share-settings-list">
+          <!-- 动态注入 -->
+        </div>
+        <div class="share-settings__locked">
+          <p class="share-settings__locked-title">以下数据永不出本机</p>
+          <div class="share-settings__locked-items">
+            <span class="share-settings__locked-tag">打卡备注</span>
+            <span class="share-settings__locked-tag">训练日志</span>
+            <span class="share-settings__locked-tag">复盘</span>
+            <span class="share-settings__locked-tag">每日一句</span>
+            <span class="share-settings__locked-tag">贵人数据</span>
+          </div>
+        </div>
+        <div class="modal__actions">
+          <button type="button" class="btn btn--ghost" data-close-share-settings>取消</button>
+          <button type="button" class="btn btn--primary" id="share-settings-confirm">确认</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== 打气消息弹窗 ===== -->
+    <div class="modal" id="cheer-modal" hidden>
+      <div class="modal__overlay" data-close-cheer></div>
+      <div class="modal__panel">
+        <h2 class="modal__title">给TA打打气</h2>
+        <div class="cheer-options" id="cheer-options">
+          <!-- 动态注入 -->
+        </div>
+        <div class="modal__actions">
+          <button type="button" class="btn btn--ghost" data-close-cheer>取消</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== 共同目标创建弹窗 ===== -->
+    <div class="modal" id="shared-goal-create-modal" hidden>
+      <div class="modal__overlay" data-close-shared-create></div>
+      <div class="modal__panel">
+        <h2 class="modal__title">发起共同目标</h2>
+        <p class="decompose-hint">两个人往同一个水池里灌，谁多谁少不重要，灌满就行</p>
+        <form id="shared-goal-form" class="modal__form" novalidate>
+          <label class="field">
+            <span class="field__label">目标名称</span>
+            <input type="text" name="sharedName" class="field__input" placeholder="例如：一起背完3500词" required>
+          </label>
+          <label class="field">
+            <span class="field__label">一句为什么</span>
+            <input type="text" name="sharedWhy" class="field__input" placeholder="为什么你们要一起做这个？">
+          </label>
+          <label class="field">
+            <span class="field__label">目标类型</span>
+            <select name="sharedType" class="field__input" id="shared-goal-type">
+              <option value="cumulative">累计型（从0数到N）</option>
+              <option value="habit">习惯型（周期重复）</option>
+            </select>
+          </label>
+          <div class="field-row">
+            <label class="field">
+              <span class="field__label" id="lbl-shared-target">目标值</span>
+              <input type="number" name="sharedTarget" class="field__input" value="100" min="1" step="any">
+            </label>
+            <label class="field">
+              <span class="field__label">单位</span>
+              <input type="text" name="sharedUnit" class="field__input" value="个">
+            </label>
+          </div>
+          <label class="field" id="field-shared-weekly" hidden>
+            <span class="field__label">每周目标次数（1~7）</span>
+            <input type="number" name="sharedWeekly" class="field__input" value="3" min="1" max="7" step="1">
+          </label>
+        </form>
+        <div class="modal__actions">
+          <button type="button" class="btn btn--ghost" data-close-shared-create>取消</button>
+          <button type="button" class="btn btn--primary" id="shared-goal-create-confirm">发起邀请</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== 待认证打卡弹窗（裁判模式） ===== -->
+    <div class="modal" id="judge-modal" hidden>
+      <div class="modal__overlay" data-close-judge></div>
+      <div class="modal__panel">
+        <h2 class="modal__title">待认证的打卡</h2>
+        <p class="decompose-hint" id="judge-hint">TA打了卡，等你认一下</p>
+        <div class="judge-list" id="judge-list">
+          <!-- 动态注入 -->
+        </div>
+        <div class="modal__actions">
+          <button type="button" class="btn btn--ghost" data-close-judge>关闭</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== 驳回理由弹窗 ===== -->
+    <div class="modal" id="judge-reject-modal" hidden>
+      <div class="modal__overlay" data-close-judge-reject></div>
+      <div class="modal__panel">
+        <h2 class="modal__title">驳回理由</h2>
+        <p class="decompose-hint">填一句话告诉TA为什么没认，空着不行</p>
+        <textarea id="judge-reject-reason" class="field__input" rows="3" placeholder="如：今天好像没看到你做了？聊聊？"></textarea>
+        <span class="field__error" id="judge-reject-error"></span>
+        <div class="modal__actions">
+          <button type="button" class="btn btn--ghost" data-close-judge-reject>取消</button>
+          <button type="button" class="btn btn--primary" id="judge-reject-confirm">提交驳回</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 确认弹窗（删除二次确认） -->
+    <div class="modal confirm-modal" id="confirm-modal" hidden>
+      <div class="modal__overlay" data-close-confirm></div>
+      <div class="modal__panel">
+        <div class="confirm-modal__icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M12 8v4M12 16h.01"/>
+          </svg>
+        </div>
+        <h2 class="confirm-modal__title" id="confirm-title">确认删除？</h2>
+        <p class="confirm-modal__desc" id="confirm-desc">此操作不可撤销</p>
+        <div class="confirm-modal__actions">
+          <button type="button" class="btn btn--ghost" data-close-confirm>取消</button>
+          <button type="button" class="btn btn--danger" id="confirm-ok">删除</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 皮肤设置弹窗 -->
+    <div class="modal" id="theme-modal" hidden>
+      <div class="modal__overlay" data-close-theme></div>
+      <div class="modal__panel">
+        <h2 class="modal__title">皮肤设置</h2>
+        <div class="theme-section">
+          <p class="theme-section__title">预设主题</p>
+          <div class="theme-grid" id="theme-grid">
+            <button class="theme-swatch" data-theme="default" type="button">
+              <span class="theme-swatch__color" style="background:#0c1222"></span>
+              <span class="theme-swatch__accent" style="background:#38bdf8"></span>
+              <span class="theme-swatch__name">深空蓝</span>
+            </button>
+            <button class="theme-swatch" data-theme="ink" type="button">
+              <span class="theme-swatch__color" style="background:#0a0a0a"></span>
+              <span class="theme-swatch__accent" style="background:#e5e5e5"></span>
+              <span class="theme-swatch__name">墨黑</span>
+            </button>
+            <button class="theme-swatch" data-theme="bamboo" type="button">
+              <span class="theme-swatch__color" style="background:#0d1a14"></span>
+              <span class="theme-swatch__accent" style="background:#4ade80"></span>
+              <span class="theme-swatch__name">竹青绿</span>
+            </button>
+            <button class="theme-swatch" data-theme="apricot" type="button">
+              <span class="theme-swatch__color" style="background:#1a1410"></span>
+              <span class="theme-swatch__accent" style="background:#fbbf24"></span>
+              <span class="theme-swatch__name">暖杏黄</span>
+            </button>
+            <button class="theme-swatch" data-theme="mist" type="button">
+              <span class="theme-swatch__color" style="background:#13101a"></span>
+              <span class="theme-swatch__accent" style="background:#a78bfa"></span>
+              <span class="theme-swatch__name">雾紫</span>
+            </button>
+          </div>
+        </div>
+        <div class="theme-section">
+          <p class="theme-section__title">自定义照片背景</p>
+          <div class="theme-photo-area" id="theme-photo-area">
+            <input type="file" id="theme-photo-input" accept="image/*" hidden>
+            <button class="btn btn--ghost btn--small" id="theme-photo-btn" type="button">选择图片</button>
+            <button class="btn btn--danger-weak" id="theme-photo-remove" type="button" hidden>移除照片</button>
+          </div>
+          <p class="theme-photo-hint">照片仅存于本机浏览器</p>
+        </div>
+        <div class="modal__actions">
+          <button type="button" class="btn btn--ghost" data-close-theme>关闭</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 底部导航 -->
     <nav class="nav" aria-label="底部导航">
-      <a href="#" class="nav__item nav__item--active" data-nav="home" aria-current="page">
+      <button class="nav__item nav__item--active" data-nav="home" aria-current="page">
         <span class="nav__icon" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
             <path d="M3 10.5L12 4l9 6.5V20a1 1 0 01-1 1H4a1 1 0 01-1-1v-9.5z"/>
           </svg>
         </span>
         <span class="nav__label">首页</span>
-      </a>
-      <a href="#" class="nav__item" data-nav="log">
+      </button>
+      <button class="nav__item" data-nav="goals">
         <span class="nav__icon" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <path d="M12 20h9M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/>
+            <circle cx="12" cy="12" r="9"/>
+            <circle cx="12" cy="12" r="5"/>
+            <circle cx="12" cy="12" r="1.5" fill="currentColor"/>
           </svg>
         </span>
-        <span class="nav__label">记录</span>
-      </a>
-      <a href="#" class="nav__item" data-nav="stats">
+        <span class="nav__label">目标</span>
+      </button>
+      <button class="nav__item" data-nav="noble">
         <span class="nav__icon" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <path d="M4 19V5M4 19h16M8 15v-3M12 19v-6M16 11V5"/>
+            <path d="M12 2l2.4 7.4H22l-6 4.6 2.3 7L12 17.8 5.7 21l2.3-7-6-4.6h7.6L12 2z"/>
+          </svg>
+        </span>
+        <span class="nav__label">贵人</span>
+      </button>
+      <button class="nav__item" data-nav="past">
+        <span class="nav__icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <circle cx="12" cy="12" r="9"/>
+            <path d="M12 7v5l3 3"/>
+          </svg>
+        </span>
+        <span class="nav__label">既往</span>
+      </button>
+      <button class="nav__item" data-nav="stats">
+        <span class="nav__icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M3 3v18h18"/>
+            <path d="M7 14l3-3 3 3 5-5"/>
           </svg>
         </span>
         <span class="nav__label">统计</span>
-      </a>
-      <a href="#" class="nav__item" data-nav="settings">
-        <span class="nav__icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <circle cx="12" cy="12" r="3"/>
-            <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>
-          </svg>
-        </span>
-        <span class="nav__label">设置</span>
-      </a>
+      </button>
     </nav>
-    <footer class="footer">© 2026 LifeOS</footer>
+    <footer class="footer">
+      © 2026 LifeOS
+      <span class="footer__sep">·</span>
+      <span class="footer__link" id="replay-onboard-link">回到第0天</span>
+      <span class="footer__sep">·</span>
+      <span class="footer__link" id="reset-teaching-link">重开目标教学</span>
+    </footer>
   </div>
-  <!-- Supabase 接入预留：占位配置时跳过初始化，避免阻塞页面交互 -->
-  <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
-  <script>
-  // Supabase 配置（接入时替换为真实的 URL 和 anon key）
-  var SUPABASE_URL = 'https://YOUR_PROJECT.supabase.co';
-  var SUPABASE_KEY = 'YOUR_ANON_KEY';
-  window.addEventListener('load', function () {
-    try {
-      if (window.supabase && SUPABASE_URL.indexOf('YOUR_') === -1) {
-        window.supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-      }
-    } catch (e) { /* 后端未接入时忽略，不影响页面交互 */ }
-  });
-  </script>
-  <script src="app.js"></script>
+
+  <script src="https://imgcache.qq.com/open/qcloud/cloudbase-js-sdk/1.7.2/cloudbase.full.js"></script>
+  <script src="cloud.js?v=20260809c"></script>
+  <script src="app.js?v=20260809c"></script>
 </body>
 </html>
