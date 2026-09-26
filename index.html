@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>LifeOS - 记录即存在</title>
-  <link rel="stylesheet" href="styles.css?v=20260922a">
+  <link rel="stylesheet" href="styles.css?v=20260926a">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -128,6 +128,11 @@
         <section class="quad-panel" data-quad="today" aria-label="今日">
           <div class="quad-panel__head">
             <h2 class="quad-panel__title">今日</h2>
+            <button class="quad-panel__manage" id="schedule-manage-btn" type="button" aria-label="管理日程">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+                <path d="M4 6h16M4 12h16M4 18h16" stroke-linecap="round"/>
+              </svg>
+            </button>
             <span class="quad-panel__lock" aria-hidden="true" title="此看板可单独加锁">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                 <rect x="5" y="11" width="14" height="9" rx="2"/>
@@ -140,18 +145,15 @@
               <span class="quad-dot"></span>
             </div>
           </div>
-          <div class="quad-swipe">
-            <div class="quad-slide">
-              <p class="quad-slide__hint">这里会住进<strong>今天该做的事</strong>：课程表导进来、点一下就打卡、每件事都和你的目标挂钩。</p>
-              <span class="quad-slide__tag">Sprint 2 开门</span>
+          <div class="quad-swipe" id="today-swipe">
+            <div class="quad-slide" id="today-slide-list">
+              <!-- 今日列表（JS 渲染） -->
             </div>
-            <div class="quad-slide">
-              <p class="quad-slide__hint">往这边滑是<strong>趋势</strong>：数据一天天攒起来，替你看见你自己。</p>
-              <span class="quad-slide__tag">Sprint 2 开门</span>
+            <div class="quad-slide" id="today-slide-trend">
+              <!-- 7 天完成趋势（JS 渲染） -->
             </div>
-            <div class="quad-slide">
-              <p class="quad-slide__hint">再滑是<strong>目标</strong>：每一个走到哪了，一眼看全，不用翻页。</p>
-              <span class="quad-slide__tag">Sprint 2 开门</span>
+            <div class="quad-slide" id="today-slide-goals">
+              <!-- 目标概览（JS 渲染） -->
             </div>
           </div>
         </section>
@@ -1246,6 +1248,86 @@
       </div>
     </div>
 
+    <!-- Sprint 2：日程表单弹窗（新建 / 编辑） -->
+    <div class="modal" id="schedule-modal" hidden>
+      <div class="modal__overlay" data-close-modal></div>
+      <div class="modal__panel">
+        <div class="modal__title-row">
+          <h2 class="modal__title" id="schedule-modal-title">添加日程</h2>
+        </div>
+        <p class="decompose-hint" id="schedule-modal-hint">把今天要做的事先请进来，打卡只要点一下</p>
+        <form id="schedule-form" class="modal__form" novalidate>
+          <input type="hidden" id="schedule-edit-id">
+          <label class="field">
+            <span class="field__label">要做什么</span>
+            <input type="text" id="schedule-title" class="field__input" placeholder="例如：高数课 / 晚跑 / 背50个单词" maxlength="30" required>
+            <span class="field__error"></span>
+          </label>
+          <div class="field-row">
+            <label class="field">
+              <span class="field__label">开始时间</span>
+              <input type="time" id="schedule-time" class="field__input">
+            </label>
+            <label class="field">
+              <span class="field__label">结束时间（可选）</span>
+              <input type="time" id="schedule-end" class="field__input">
+            </label>
+          </div>
+          <label class="field">
+            <span class="field__label">什么时候出现</span>
+            <select id="schedule-repeat" class="field__input">
+              <option value="daily">每天</option>
+              <option value="weekly">每周固定几天</option>
+              <option value="once">只在某一天</option>
+            </select>
+          </label>
+          <div class="schedule-weekday-row" id="schedule-weekdays" hidden>
+            <span class="field__label">周几出现</span>
+            <div class="schedule-weekdays">
+              <button type="button" class="weekday-chip" data-day="1">一</button>
+              <button type="button" class="weekday-chip" data-day="2">二</button>
+              <button type="button" class="weekday-chip" data-day="3">三</button>
+              <button type="button" class="weekday-chip" data-day="4">四</button>
+              <button type="button" class="weekday-chip" data-day="5">五</button>
+              <button type="button" class="weekday-chip" data-day="6">六</button>
+              <button type="button" class="weekday-chip" data-day="7">日</button>
+            </div>
+          </div>
+          <label class="field" id="schedule-once-date-wrap" hidden>
+            <span class="field__label">哪一天</span>
+            <input type="date" id="schedule-date" class="field__input">
+          </label>
+          <label class="field">
+            <span class="field__label">和目标有关吗（可选）</span>
+            <select id="schedule-goal" class="field__input">
+              <option value="">不挂钩，就是件日常的事</option>
+            </select>
+            <span class="field__hint">挂钩后，这件事的打卡会直接算进目标进度</span>
+          </label>
+          <div class="modal__actions">
+            <button type="button" class="btn btn--ghost" data-close-modal>取消</button>
+            <button type="submit" class="btn btn--primary" id="schedule-submit">放进来</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Sprint 2：日程管理弹窗 -->
+    <div class="modal" id="schedule-manage-modal" hidden>
+      <div class="modal__overlay" data-close-modal></div>
+      <div class="modal__panel">
+        <div class="modal__title-row">
+          <h2 class="modal__title">日程管理</h2>
+          <div class="modal__title-actions">
+            <button type="button" class="btn btn--primary btn--small" id="schedule-add-another">＋ 新建</button>
+          </div>
+        </div>
+        <div class="schedule-manage-list" id="schedule-manage-list">
+          <!-- JS 渲染 -->
+        </div>
+      </div>
+    </div>
+
     <!-- 确认弹窗（删除二次确认） -->
     <div class="modal confirm-modal" id="confirm-modal" hidden>
       <div class="modal__overlay" data-close-confirm></div>
@@ -1358,7 +1440,7 @@
   </div>
 
   <script src="https://imgcache.qq.com/open/qcloud/cloudbase-js-sdk/1.7.2/cloudbase.full.js"></script>
-  <script src="cloud.js?v=20260922a"></script>
-  <script src="app.js?v=20260922a"></script>
+  <script src="cloud.js?v=20260926a"></script>
+  <script src="app.js?v=20260926a"></script>
 </body>
 </html>

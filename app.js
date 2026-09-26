@@ -7615,9 +7615,438 @@ function replayOnboarding() {
 }
 
 // ============================================================
-// 融合版仪表盘（Sprint 1：骨架 + 黑金皮肤）
+// 融合版仪表盘
+// Sprint 1：骨架 + 黑金皮肤
+// Sprint 2：今日板块（日程 + 打卡 + 目标挂钩 + 趋势/目标概览）
 // ============================================================
 
+// ---- 数据层 ----
+var STORAGE_SCHEDULE = 'lifeos_schedule';
+var STORAGE_CHECKINS = 'lifeos_checkins';
+
+function loadSchedule() { return loadJSON(STORAGE_SCHEDULE, []); }
+function saveSchedule(s) { saveJSON(STORAGE_SCHEDULE, s); }
+function loadCheckins() { return loadJSON(STORAGE_CHECKINS, {}); }
+function saveCheckins(c) { saveJSON(STORAGE_CHECKINS, c); }
+
+// 某日程在某天是否出现
+function scheduleAppearsOn(item, dateKey) {
+  if (!item) return false;
+  if (item.repeat === 'daily') return true;
+  if (item.repeat === 'weekly') {
+    var jsDay = new Date(dateKey + 'T00:00:00').getDay(); // 0=周日
+    var ourDay = jsDay === 0 ? 7 : jsDay;                 // 1=一 … 7=日
+    return (item.days || []).indexOf(ourDay) !== -1;
+  }
+  if (item.repeat === 'once') return item.date === dateKey;
+  return false;
+}
+
+// 某天要出现的事项（按时间排序，无时间排最后）
+function getScheduleFor(dateKey) {
+  return loadSchedule()
+    .filter(function(it) { return scheduleAppearsOn(it, dateKey); })
+    .sort(function(a, b) {
+      var ta = a.time || '99:99';
+      var tb = b.time || '99:99';
+      return ta < tb ? -1 : (ta > tb ? 1 : 0);
+    });
+}
+
+function getDayCheckins(dateKey) {
+  var all = loadCheckins();
+  return all[dateKey] || {};
+}
+
+// ---- 打卡人味文案（按内容具体夸，不审判）----
+var CHECKIN_PRAISES = [
+  '做完了。今天的力气，没白花',
+  '又完成一件。这些小事，正在把你送到想去的地方',
+  '打钩了，剩下的时间理直气壮地休息',
+  '很好，这件事它等到了你'
+];
+
+// ---- 打卡 ----
+function checkScheduleItem(itemId) {
+  var item = loadSchedule().find(function(s) { return s.id === itemId; });
+  var all = loadCheckins();
+  var today = todayKey();
+  if (!all[today]) all[today] = {};
+  if (all[today][itemId]) return; // 已打过，不重复记
+
+  var now = new Date();
+  all[today][itemId] = {
+    time: String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0'),
+    goal: item ? (item.goalId || null) : null
+  };
+  saveCheckins(all);
+
+  // 目标挂钩：直接复用目标打卡（streak / 成就 / 完成仪式全套联动）
+  var justCompletedGoal = false;
+  if (item && item.goalId) {
+    var g = loadGoals().find(function(x) { return x.id === item.goalId; });
+    if (g && !g.completed && !g.paused) {
+      quickCheckin(item.goalId, 1, null);
+      var gAfter = loadGoals().find(function(x) { return x.id === item.goalId; });
+      justCompletedGoal = gAfter && gAfter.completed;
+    }
+  }
+
+  renderTodayBoard();
+
+  if (!justCompletedGoal) {
+    var praise = CHECKIN_PRAISES[Math.floor(Math.random() * CHECKIN_PRAISES.length)];
+    var g2 = item && item.goalId ? loadGoals().find(function(x) { return x.id === item.goalId; }) : null;
+    if (g2) praise += '，' + g2.name + ' 也跟着前进了';
+    showToast(praise, 'success');
+  }
+}
+
+// ---- 渲染：第一屏 今日列表 ----
+function renderTodayBoard() {
+  var slideList = document.getElementById('today-slide-list');
+  if (!slideList) return;
+  var today = todayKey();
+  var items = getScheduleFor(today);
+  var checked = getDayCheckins(today);
+  var doneCount = items.filter(function(it) { return checked[it.id]; }).length;
+  var goals = {};
+  loadGoals().forEach(function(g) { goals[g.id] = g; });
+
+  var html = '';
+
+  // 汇总行
+  if (items.length > 0) {
+    var sumText = doneCount === items.length
+      ? '今天的事都清完了，一共 ' + items.length + ' 件'
+      : '已完成 ' + doneCount + ' / ' + items.length + '，不急，一件一件来';
+    html += '<div class="today-summary">' + sumText + '</div>';
+  }
+
+  if (items.length === 0) {
+    html += '<div class="today-empty">' +
+      '<p class="today-empty__text">今天还没有安排。<br>哪怕只是「好好吃顿饭」，也值得占一格。</p>' +
+      '<button class="btn btn--primary btn--small" data-schedule-add type="button">＋ 安排一件事</button>' +
+      '</div>';
+  } else {
+    var pendingShown = 0;
+    items.forEach(function(it) {
+      if (checked[it.id]) return; // 打卡了就隐藏
+      pendingShown++;
+      var g = it.goalId ? goals[it.goalId] : null;
+      html += '<div class="today-item" data-item-id="' + it.id + '">' +
+        '<span class="today-item__time">' + (it.time || '随时') + '</span>' +
+        '<span class="today-item__body">' +
+          '<span class="today-item__title">' + escapeHtml(it.title) + '</span>' +
+          (g ? '<span class="today-item__goal">↗ ' + escapeHtml(g.name) + '</span>' : '') +
+        '</span>' +
+        '<button class="today-item__check" data-check="' + it.id + '" type="button" aria-label="打卡 ' + escapeHtml(it.title) + '">' +
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M5 12.5l4.5 4.5L19 7" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
+        '</button>' +
+      '</div>';
+    });
+    if (pendingShown === 0) {
+      html += '<div class="today-empty">' +
+        '<p class="today-empty__text">都做完了。剩下的时间，是你的。</p>' +
+        '</div>';
+    }
+  }
+
+  // 底部操作行
+  html += '<div class="today-actions">' +
+    '<button class="btn btn--ghost btn--small" data-schedule-add type="button">＋ 添加日程</button>' +
+    '<button class="btn btn--ghost btn--small" data-schedule-manage type="button">管理</button>' +
+  '</div>';
+
+  slideList.innerHTML = html;
+
+  renderTodayTrend();
+  renderTodayGoals();
+}
+
+// ---- 渲染：第二屏 7 天趋势（原生 SVG）----
+function renderTodayTrend() {
+  var slide = document.getElementById('today-slide-trend');
+  if (!slide) return;
+  var schedule = loadSchedule();
+  if (schedule.length === 0) {
+    slide.innerHTML = '<p class="quad-slide__hint">攒了几天打卡之后，这里会替你看见<strong>最近一周的你</strong>。</p>';
+    return;
+  }
+
+  var days = [];
+  var cursor = new Date();
+  cursor.setHours(0, 0, 0, 0);
+  for (var i = 6; i >= 0; i--) {
+    var d = new Date(cursor);
+    d.setDate(d.getDate() - i);
+    days.push(formatDate(d.toISOString()));
+  }
+
+  var maxTotal = 0;
+  var data = days.map(function(dk) {
+    var items = getScheduleFor(dk);
+    var done = getDayCheckins(dk);
+    var total = items.length;
+    var doneN = items.filter(function(it) { return done[it.id]; }).length;
+    if (total > maxTotal) maxTotal = total;
+    return { date: dk, total: total, done: doneN };
+  });
+
+  var weekdays = ['日', '一', '二', '三', '四', '五', '六'];
+  var W = 300, H = 110, padX = 8, padY = 24, gap = 6;
+  var barW = (W - padX * 2 - gap * 6) / 7;
+  var svg = '<svg class="trend-svg" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="近7天完成趋势">';
+  data.forEach(function(d, i) {
+    var x = padX + i * (barW + gap);
+    var jsDay = new Date(d.date + 'T00:00:00').getDay();
+    var label = weekdays[jsDay];
+    var fullH = maxTotal > 0 ? 64 : 0;
+    var y0 = padY + fullH;
+    if (d.total === 0) {
+      svg += '<line x1="' + (x + barW / 2) + '" y1="' + (y0 - 8) + '" x2="' + (x + barW / 2) + '" y2="' + y0 + '" stroke="var(--border-strong)" stroke-width="2" stroke-linecap="round"/>';
+    } else {
+      var hDone = fullH * (d.done / d.total);
+      var hTodo = fullH - hDone;
+      if (hTodo > 0.5) {
+        svg += '<rect x="' + x + '" y="' + (y0 - fullH) + '" width="' + barW + '" height="' + hTodo + '" rx="3" fill="var(--bg-card-2)" stroke="var(--border)"/>';
+      }
+      if (hDone > 0.5) {
+        svg += '<rect x="' + x + '" y="' + (y0 - hDone) + '" width="' + barW + '" height="' + hDone + '" rx="3" fill="var(--c-accent)"/>';
+      }
+      if (d.done > 0) {
+        svg += '<text x="' + (x + barW / 2) + '" y="' + (y0 - hDone - 5) + '" text-anchor="middle" font-size="10" fill="var(--t-2)">' + d.done + '</text>';
+      }
+    }
+    svg += '<text x="' + (x + barW / 2) + '" y="' + (H - 8) + '" text-anchor="middle" font-size="10" fill="var(--t-3)">' + (i === 6 ? '今天' : label) + '</text>';
+  });
+  svg += '</svg>';
+
+  var totalDone7 = data.reduce(function(s, d) { return s + d.done; }, 0);
+  var trendText = totalDone7 === 0
+    ? '最近一周还没有打卡记录，第一下最贵，点下去就便宜了'
+    : '这七天你完成了 ' + totalDone7 + ' 件事，一格一格都是自己长出来的';
+
+  slide.innerHTML = svg + '<p class="today-trend__text">' + trendText + '</p>';
+}
+
+// ---- 渲染：第三屏 目标概览 ----
+function renderTodayGoals() {
+  var slide = document.getElementById('today-slide-goals');
+  if (!slide) return;
+  var goals = loadGoals().filter(function(g) { return !g.completed; });
+  if (goals.length === 0) {
+    slide.innerHTML = '<p class="quad-slide__hint">还没有在走的目标。<br>去「我的 · 个人目标」立一个，日程就能和它挂钩。</p>';
+    return;
+  }
+  var html = '<p class="today-goals__count">在路上：' + goals.length + ' 个</p>';
+  goals.slice(0, 5).forEach(function(g) {
+    var p = Math.round(calcProgress(g) * 100);
+    var checkedToday = (g.checkins || []).some(function(c) { return c.date === todayKey(); });
+    html += '<button class="today-goal" data-goal-go="' + g.id + '" type="button">' +
+      '<span class="today-goal__name">' + escapeHtml(g.name) + (checkedToday ? '<span class="today-goal__today">今日已打卡</span>' : '') + '</span>' +
+      '<span class="today-goal__bar"><span class="today-goal__fill" style="width:' + p + '%"></span></span>' +
+      '<span class="today-goal__pct">' + p + '%</span>' +
+    '</button>';
+  });
+  if (goals.length > 5) {
+    html += '<p class="today-goals__more">还有 ' + (goals.length - 5) + ' 个目标在「我的」里等你</p>';
+  }
+  slide.innerHTML = html;
+}
+
+// ---- 日程表单（新建 / 编辑）----
+var _weekdayPicked = [];
+
+function repeatDesc(item) {
+  if (!item) return '';
+  if (item.repeat === 'daily') return '每天';
+  if (item.repeat === 'weekly') {
+    var names = { 1: '一', 2: '二', 3: '三', 4: '四', 5: '五', 6: '六', 7: '日' };
+    var ds = (item.days || []).slice().sort(function(a, b) { return a - b; })
+      .map(function(d) { return names[d] || d; }).join(' ');
+    return '每周 ' + (ds || '（未选周几）');
+  }
+  if (item.repeat === 'once') return (item.date || '') + ' 一次';
+  return '';
+}
+
+function populateScheduleGoalSelect(selectedId) {
+  var sel = document.getElementById('schedule-goal');
+  if (!sel) return;
+  var keep = sel.querySelector('option'); // 第一个"不挂钩"选项
+  sel.innerHTML = '';
+  sel.appendChild(keep);
+  loadGoals().filter(function(g) { return !g.completed; }).forEach(function(g) {
+    var opt = document.createElement('option');
+    opt.value = g.id;
+    opt.textContent = g.name + '（' + Math.round(calcProgress(g) * 100) + '%）';
+    if (selectedId === g.id) opt.selected = true;
+    sel.appendChild(opt);
+  });
+}
+
+function openScheduleModal(editId) {
+  var modal = document.getElementById('schedule-modal');
+  if (!modal) return;
+  var isEdit = !!editId;
+  var item = null;
+  if (isEdit) {
+    item = loadSchedule().find(function(s) { return s.id === editId; });
+    if (!item) return;
+  }
+
+  document.getElementById('schedule-modal-title').textContent = isEdit ? '改一改这件事' : '添加日程';
+  document.getElementById('schedule-modal-hint').textContent = isEdit
+    ? '改好之后，它明天还是老位置等你'
+    : '把要做的事先请进来，打卡只要点一下';
+  document.getElementById('schedule-edit-id').value = isEdit ? item.id : '';
+  document.getElementById('schedule-title').value = isEdit ? (item.title || '') : '';
+  document.getElementById('schedule-time').value = isEdit ? (item.time || '') : '';
+  document.getElementById('schedule-end').value = isEdit ? (item.endTime || '') : '';
+  document.getElementById('schedule-repeat').value = isEdit ? (item.repeat || 'daily') : 'daily';
+  document.getElementById('schedule-date').value = isEdit ? (item.date || '') : '';
+
+  _weekdayPicked = isEdit ? (item.days || []).slice() : [];
+  updateWeekdayChips();
+  updateScheduleRepeatFields();
+  populateScheduleGoalSelect(isEdit ? (item.goalId || '') : '');
+
+  var errEl = document.querySelector('#schedule-form .field__error');
+  if (errEl) errEl.textContent = '';
+  var titleEl = document.getElementById('schedule-title');
+  titleEl.classList.remove('field__input--error');
+
+  openModal(modal);
+  setTimeout(function() { titleEl.focus(); }, 60);
+}
+
+function updateWeekdayChips() {
+  document.querySelectorAll('#schedule-weekdays .weekday-chip').forEach(function(chip) {
+    var day = parseInt(chip.dataset.day, 10);
+    chip.classList.toggle('weekday-chip--active', _weekdayPicked.indexOf(day) !== -1);
+  });
+}
+
+function updateScheduleRepeatFields() {
+  var rep = document.getElementById('schedule-repeat').value;
+  document.getElementById('schedule-weekdays').hidden = (rep !== 'weekly');
+  document.getElementById('schedule-once-date-wrap').hidden = (rep !== 'once');
+}
+
+function closeScheduleModal() {
+  var modal = document.getElementById('schedule-modal');
+  if (modal) modal.hidden = true;
+}
+
+function saveScheduleFromForm() {
+  var title = document.getElementById('schedule-title').value.trim();
+  var time = document.getElementById('schedule-time').value;
+  var endTime = document.getElementById('schedule-end').value;
+  var repeat = document.getElementById('schedule-repeat').value;
+  var date = document.getElementById('schedule-date').value;
+  var goalId = document.getElementById('schedule-goal').value || null;
+  var editId = document.getElementById('schedule-edit-id').value;
+
+  // 校验：标题必填
+  var errEl = document.querySelector('#schedule-form .field__error');
+  var titleEl = document.getElementById('schedule-title');
+  if (!title) {
+    if (errEl) errEl.textContent = '给它起个名字吧，不然打卡的时候会想不起来是啥';
+    titleEl.classList.add('field__input--error');
+    titleEl.focus();
+    return;
+  }
+  if (repeat === 'weekly' && _weekdayPicked.length === 0) {
+    if (errEl) errEl.textContent = '选一下周几出现，全选就是每天';
+    return;
+  }
+  if (repeat === 'once' && !date) {
+    if (errEl) errEl.textContent = '选一下是哪一天';
+    return;
+  }
+  if (errEl) errEl.textContent = '';
+
+  var schedule = loadSchedule();
+  if (editId) {
+    var it = schedule.find(function(s) { return s.id === editId; });
+    if (it) {
+      it.title = title;
+      it.time = time || '';
+      it.endTime = endTime || '';
+      it.repeat = repeat;
+      it.days = repeat === 'weekly' ? _weekdayPicked.slice() : (it.days || []);
+      it.date = repeat === 'once' ? date : '';
+      it.goalId = goalId;
+    }
+  } else {
+    schedule.push({
+      id: uuid(),
+      title: title,
+      time: time || '',
+      endTime: endTime || '',
+      repeat: repeat,
+      days: repeat === 'weekly' ? _weekdayPicked.slice() : [],
+      date: repeat === 'once' ? date : '',
+      goalId: goalId,
+      createdAt: new Date().toISOString()
+    });
+  }
+  saveSchedule(schedule);
+  closeScheduleModal();
+  renderTodayBoard();
+  renderScheduleManageList();
+  showToast(editId ? '改好了，位置不变' : '放进来了，到时候见', 'success');
+}
+
+// ---- 日程管理列表 ----
+function renderScheduleManageList() {
+  var listEl = document.getElementById('schedule-manage-list');
+  if (!listEl) return;
+  var schedule = loadSchedule();
+  var goals = {};
+  loadGoals().forEach(function(g) { goals[g.id] = g; });
+
+  if (schedule.length === 0) {
+    listEl.innerHTML = '<p class="schedule-manage__empty">还没有日程。上面点「＋ 新建」，或者从首页「添加日程」开始。</p>';
+    return;
+  }
+
+  var html = '';
+  schedule.forEach(function(it) {
+    var g = it.goalId ? goals[it.goalId] : null;
+    html += '<div class="schedule-manage__row">' +
+      '<div class="schedule-manage__info">' +
+        '<span class="schedule-manage__title">' + escapeHtml(it.title) + '</span>' +
+        '<span class="schedule-manage__meta">' +
+          (it.time ? it.time + (it.endTime ? '–' + it.endTime : '') : '随时') +
+          ' · ' + repeatDesc(it) +
+          (g ? ' · ↗ ' + escapeHtml(g.name) : '') +
+        '</span>' +
+      '</div>' +
+      '<div class="schedule-manage__btns">' +
+        '<button class="btn btn--ghost btn--small" data-sched-edit="' + it.id + '" type="button">编辑</button>' +
+        '<button class="btn btn--ghost btn--small schedule-manage__del" data-sched-del="' + it.id + '" type="button">删除</button>' +
+      '</div>' +
+    '</div>';
+  });
+  listEl.innerHTML = html;
+}
+
+function deleteScheduleItem(id) {
+  var it = loadSchedule().find(function(s) { return s.id === id; });
+  var name = it ? it.title : '这条日程';
+  confirmDelete('删除「' + name + '」？', '只删日程本身，目标不受影响；已经打过卡的历史记录会保留。',
+    function() {
+      var schedule = loadSchedule().filter(function(s) { return s.id !== id; });
+      saveSchedule(schedule);
+      renderScheduleManageList();
+      renderTodayBoard();
+      showToast('删掉了。它是来帮忙的，走了也不欠你什么', 'info');
+    });
+}
+
+// ---- 仪表盘头部 ----
 function renderDashboard() {
   var now = new Date();
   var weekdays = ['日', '一', '二', '三', '四', '五', '六'];
@@ -7643,6 +8072,8 @@ function renderDashboard() {
     }
     greetEl.textContent = greet;
   }
+
+  renderTodayBoard();
 }
 
 function initDashboard() {
@@ -7661,6 +8092,82 @@ function initDashboard() {
     });
   });
 
+  // 今日板块：事件委托（打卡 / 添加 / 管理 / 跳目标）
+  var todaySwipe = document.getElementById('today-swipe');
+  if (todaySwipe) {
+    todaySwipe.addEventListener('click', function(e) {
+      var checkBtn = e.target.closest('[data-check]');
+      if (checkBtn) {
+        var row = checkBtn.closest('.today-item');
+        if (row) row.classList.add('today-item--done'); // 先动画
+        setTimeout(function() { checkScheduleItem(checkBtn.dataset.check); }, 260);
+        return;
+      }
+      var addBtn = e.target.closest('[data-schedule-add]');
+      if (addBtn) { openScheduleModal(null); return; }
+      var manageBtn = e.target.closest('[data-schedule-manage]');
+      if (manageBtn) {
+        renderScheduleManageList();
+        openModal(document.getElementById('schedule-manage-modal'));
+        return;
+      }
+      var goalBtn = e.target.closest('[data-goal-go]');
+      if (goalBtn) { switchView('goals'); return; }
+    });
+  }
+
+  // 头部「日程管理」按钮
+  var manageHeadBtn = document.getElementById('schedule-manage-btn');
+  if (manageHeadBtn) {
+    manageHeadBtn.addEventListener('click', function() {
+      renderScheduleManageList();
+      openModal(document.getElementById('schedule-manage-modal'));
+    });
+  }
+
+  // 日程表单
+  var form = document.getElementById('schedule-form');
+  if (form) {
+    form.addEventListener('submit', function(e) {
+      e.preventDefault();
+      saveScheduleFromForm();
+    });
+    var repSel = document.getElementById('schedule-repeat');
+    if (repSel) repSel.addEventListener('change', updateScheduleRepeatFields);
+    document.querySelectorAll('#schedule-weekdays .weekday-chip').forEach(function(chip) {
+      chip.addEventListener('click', function() {
+        var day = parseInt(chip.dataset.day, 10);
+        var i = _weekdayPicked.indexOf(day);
+        if (i === -1) _weekdayPicked.push(day); else _weekdayPicked.splice(i, 1);
+        updateWeekdayChips();
+      });
+    });
+  }
+
+  // 日程管理弹窗：新建 / 编辑 / 删除（委托）
+  var manageModal = document.getElementById('schedule-manage-modal');
+  if (manageModal) {
+    manageModal.addEventListener('click', function(e) {
+      var addBtn = e.target.closest('#schedule-add-another');
+      if (addBtn) {
+        manageModal.hidden = true;
+        openScheduleModal(null);
+        return;
+      }
+      var editBtn = e.target.closest('[data-sched-edit]');
+      if (editBtn) {
+        manageModal.hidden = true;
+        openScheduleModal(editBtn.dataset.schedEdit);
+        return;
+      }
+      var delBtn = e.target.closest('[data-sched-del]');
+      if (delBtn) {
+        deleteScheduleItem(delBtn.dataset.schedDel);
+        return;
+      }
+    });
+  }
+
   // ＋ 快捷记录抽屉
   var sheet = document.getElementById('quick-add-sheet');
   var plusBtn = document.getElementById('quick-add-btn');
@@ -7674,7 +8181,6 @@ function initDashboard() {
   });
 
   var SPRINT_HINT = {
-    schedule: 'Sprint 2',
     sleep: 'Sprint 3',
     note: 'Sprint 4',
     money: 'Sprint 4'
@@ -7682,6 +8188,10 @@ function initDashboard() {
   sheet.querySelectorAll('.quick-sheet__item').forEach(function(item) {
     item.addEventListener('click', function() {
       sheet.hidden = true;
+      if (item.dataset.quick === 'schedule') {
+        openScheduleModal(null);
+        return;
+      }
       var sprint = SPRINT_HINT[item.dataset.quick] || '下个迭代';
       showToast('还没到它出场的时候，' + sprint + ' 见', 'warning');
     });
@@ -7726,7 +8236,7 @@ function init() {
     return;
   }
 
-  renderTodayPanel();
+  renderTodayBoard();
   checkRetentionHook();
   checkReminders();
   bindBasicInteractions();

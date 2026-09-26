@@ -6811,3 +6811,324 @@ body.has-photo .bg-glow {
   }
 }
 
+/* ============================================================
+   Sprint 2 — 今日板块：日程 / 打卡 / 趋势 / 目标概览 / 日程管理
+   ============================================================ */
+
+/* 全局保险：hidden 属性永远生效（修复 .field 等 display:flex 覆盖 hidden 的问题） */
+[hidden] {
+  display: none !important;
+}
+
+/* 头部管理按钮 */
+.quad-panel__manage {
+  margin-left: auto;
+  display: flex;
+  padding: 4px;
+  background: none;
+  border: none;
+  color: var(--t-3);
+  cursor: pointer;
+  border-radius: var(--r-sm);
+  transition: color var(--ease), background var(--ease);
+  -webkit-tap-highlight-color: transparent;
+}
+.quad-panel__manage:hover {
+  color: var(--t-1);
+  background: var(--bg-card-2);
+}
+.quad-panel__manage svg {
+  width: 15px;
+  height: 15px;
+}
+.quad-panel__manage + .quad-panel__lock {
+  margin-left: 0;
+}
+
+/* 今日汇总行 */
+.today-summary {
+  font-size: 12px;
+  color: var(--t-2);
+  margin-bottom: var(--s-3);
+}
+
+/* 事项行 */
+.today-item {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: 9px 10px;
+  border-bottom: 1px solid var(--border);
+  animation: todayItemIn 220ms ease both;
+  transition: opacity 260ms ease, transform 260ms ease;
+}
+.today-item:last-of-type {
+  border-bottom: none;
+}
+@keyframes todayItemIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.today-item--done {
+  opacity: 0;
+  transform: translateX(10px);
+}
+.today-item__time {
+  flex: 0 0 44px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--c-accent);
+  font-variant-numeric: tabular-nums;
+}
+.today-item__body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.today-item__title {
+  font-size: 14px;
+  color: var(--t-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.today-item__goal {
+  font-size: 11px;
+  color: var(--t-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.today-item__check {
+  flex: 0 0 30px;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border-strong);
+  background: none;
+  color: transparent;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all var(--ease);
+  -webkit-tap-highlight-color: transparent;
+}
+.today-item__check:hover,
+.today-item__check:focus-visible {
+  border-color: var(--c-accent);
+  color: var(--c-accent);
+  box-shadow: 0 0 0 3px var(--c-accent-soft);
+  outline: none;
+}
+.today-item__check:active {
+  transform: scale(0.88);
+}
+.today-item__check svg {
+  width: 15px;
+  height: 15px;
+}
+
+/* 空状态 */
+.today-empty {
+  padding: var(--s-4) 0 var(--s-2);
+  text-align: center;
+}
+.today-empty__text {
+  font-size: 13px;
+  color: var(--t-2);
+  line-height: 1.8;
+}
+.today-empty .btn {
+  margin-top: var(--s-3);
+}
+
+/* 底部操作行 */
+.today-actions {
+  display: flex;
+  gap: var(--s-2);
+  justify-content: flex-end;
+  margin-top: var(--s-3);
+  padding-top: var(--s-3);
+  border-top: 1px dashed var(--border);
+}
+
+/* 第二屏：趋势 */
+.trend-svg {
+  width: 100%;
+  max-width: 340px;
+  display: block;
+  margin: 0 auto;
+}
+.today-trend__text {
+  margin-top: var(--s-3);
+  font-size: 12px;
+  color: var(--t-2);
+  text-align: center;
+  line-height: 1.7;
+}
+
+/* 第三屏：目标概览 */
+.today-goals__count {
+  font-size: 12px;
+  color: var(--t-2);
+  margin-bottom: var(--s-3);
+}
+.today-goal {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  width: 100%;
+  padding: 8px 0;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  font-family: var(--font);
+  cursor: pointer;
+  text-align: left;
+  -webkit-tap-highlight-color: transparent;
+}
+.today-goal:last-of-type {
+  border-bottom: none;
+}
+.today-goal__name {
+  flex: 0 0 45%;
+  font-size: 13px;
+  color: var(--t-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.today-goal__today {
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 10px;
+  color: var(--c-accent);
+  background: var(--c-accent-soft);
+  border-radius: 999px;
+  padding: 1px 7px;
+  vertical-align: 1px;
+}
+.today-goal__bar {
+  flex: 1;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--bg-card-2);
+  overflow: hidden;
+}
+.today-goal__fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--c-accent-2, var(--c-accent)), var(--c-accent));
+  transition: width 400ms ease;
+}
+.today-goal__pct {
+  flex: 0 0 36px;
+  text-align: right;
+  font-size: 12px;
+  color: var(--t-2);
+  font-variant-numeric: tabular-nums;
+}
+.today-goals__more {
+  margin-top: var(--s-2);
+  font-size: 11px;
+  color: var(--t-3);
+  text-align: center;
+}
+
+/* 表单：周几选择 */
+.schedule-weekday-row {
+  margin-bottom: var(--s-3);
+}
+.schedule-weekday-row .field__label {
+  display: block;
+  margin-bottom: var(--s-2);
+}
+.schedule-weekdays {
+  display: flex;
+  gap: 7px;
+}
+.weekday-chip {
+  flex: 1;
+  height: 36px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--border);
+  background: var(--bg-card-2);
+  color: var(--t-2);
+  font-family: var(--font);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all var(--ease);
+  -webkit-tap-highlight-color: transparent;
+}
+.weekday-chip--active {
+  border-color: var(--c-accent);
+  color: var(--c-accent);
+  background: var(--c-accent-soft);
+  font-weight: 600;
+}
+
+/* 表单错误态 */
+.field__input.field__input--error {
+  border-color: #e5484d;
+}
+
+/* 日程管理列表 */
+.schedule-manage-list {
+  display: flex;
+  flex-direction: column;
+  max-height: 56vh;
+  overflow-y: auto;
+  margin-top: var(--s-3);
+}
+.schedule-manage__row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+.schedule-manage__row:last-child {
+  border-bottom: none;
+}
+.schedule-manage__info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.schedule-manage__title {
+  font-size: 14px;
+  color: var(--t-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.schedule-manage__meta {
+  font-size: 11px;
+  color: var(--t-3);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.schedule-manage__btns {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 6px;
+}
+.schedule-manage__del {
+  color: #e5484d;
+}
+.schedule-manage__empty {
+  padding: var(--s-5) 0;
+  font-size: 13px;
+  color: var(--t-2);
+  text-align: center;
+  line-height: 1.8;
+}
+
+
