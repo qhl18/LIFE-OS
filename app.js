@@ -7675,31 +7675,82 @@ function checkScheduleItem(itemId) {
   if (all[today][itemId]) return; // 已打过，不重复记
 
   var now = new Date();
-  all[today][itemId] = {
+  var entry = {
     time: String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0'),
-    goal: item ? (item.goalId || null) : null
+    goal: item ? (item.goalId || null) : null,
+    goalCounted: false, // 这一次打卡有没有给目标计数（防重复：一天只计一次）
+    goalTime: null      // 若计数了，对应目标 checkin 的 time（撤销时精确移除）
   };
-  saveCheckins(all);
 
-  // 目标挂钩：直接复用目标打卡（streak / 成就 / 完成仪式全套联动）
+  // 目标挂钩：复用目标打卡（streak / 成就 / 完成仪式全套联动）
+  // 防重复计数：同一目标当天已有打卡（手动或其他日程）就不再 +1
   var justCompletedGoal = false;
+  var alreadyCountedToday = false;
   if (item && item.goalId) {
     var g = loadGoals().find(function(x) { return x.id === item.goalId; });
     if (g && !g.completed && !g.paused) {
-      quickCheckin(item.goalId, 1, null);
-      var gAfter = loadGoals().find(function(x) { return x.id === item.goalId; });
-      justCompletedGoal = gAfter && gAfter.completed;
+      alreadyCountedToday = (g.checkins || []).some(function(c) { return c.date === today; });
+      if (!alreadyCountedToday) {
+        quickCheckin(item.goalId, 1, null);
+        var gAfter = loadGoals().find(function(x) { return x.id === item.goalId; });
+        justCompletedGoal = gAfter && gAfter.completed;
+        if (!justCompletedGoal) {
+          entry.goalCounted = true;
+          entry.goalTime = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+        }
+      }
     }
   }
+
+  all[today][itemId] = entry;
+  saveCheckins(all);
 
   renderTodayBoard();
 
   if (!justCompletedGoal) {
-    var praise = CHECKIN_PRAISES[Math.floor(Math.random() * CHECKIN_PRAISES.length)];
-    var g2 = item && item.goalId ? loadGoals().find(function(x) { return x.id === item.goalId; }) : null;
-    if (g2) praise += '，' + g2.name + ' 也跟着前进了';
-    showToast(praise, 'success');
+    if (alreadyCountedToday) {
+      showToast('这件事算你完成了。今天这个目标已经记过，就不重复计数了', 'info');
+    } else {
+      var praise = CHECKIN_PRAISES[Math.floor(Math.random() * CHECKIN_PRAISES.length)];
+      var g2 = item && item.goalId ? loadGoals().find(function(x) { return x.id === item.goalId; }) : null;
+      if (g2) praise += '，' + g2.name + ' 也跟着前进了';
+      showToast(praise, 'success');
+    }
   }
+}
+
+// ---- 撤销打卡 ----
+function undoScheduleCheckin(itemId) {
+  var all = loadCheckins();
+  var today = todayKey();
+  if (!all[today] || !all[today][itemId]) return;
+  var entry = all[today][itemId];
+  delete all[today][itemId];
+  saveCheckins(all);
+
+  // 如果这次打卡给目标记过数，把对应的目标 checkin 也撤掉
+  if (entry.goalCounted && entry.goal && entry.goalTime) {
+    var goals = loadGoals();
+    var g = goals.find(function(x) { return x.id === entry.goal; });
+    if (g && g.checkins) {
+      var before = g.checkins.length;
+      g.checkins = g.checkins.filter(function(c) {
+        return !(c.date === today && c.time === entry.goalTime);
+      });
+      if (g.checkins.length < before) {
+        g.currentValue = Math.max(0, (g.currentValue || 0) - 1);
+        // 若目标是被这一下打完成的，跟着退回未完成
+        if (g.completed && g.target > 0 && g.currentValue < g.target) {
+          g.completed = false;
+          delete g.completedDate;
+        }
+        saveGoals(goals);
+      }
+    }
+  }
+
+  renderTodayBoard();
+  showToast('撤回了，它回列表里等你，目标那边也还原了', 'info');
 }
 
 // ---- 渲染：第一屏 今日列表 ----
@@ -7750,6 +7801,23 @@ function renderTodayBoard() {
         '<p class="today-empty__text">都做完了。剩下的时间，是你的。</p>' +
         '</div>';
     }
+  }
+
+  // 今日已完成区（明确可见 + 可撤销，不做隐藏状态）
+  var doneItems = items.filter(function(it) { return checked[it.id]; });
+  if (doneItems.length > 0) {
+    html += '<div class="today-done-block">' +
+      '<div class="today-done-block__title">今日已完成 · ' + doneItems.length + ' 件（点撤销可退回）</div>';
+    doneItems.forEach(function(it) {
+      html += '<div class="today-item today-item--checked" data-item-id="' + it.id + '">' +
+        '<span class="today-item__time">' + (checked[it.id].time || '') + '</span>' +
+        '<span class="today-item__body">' +
+          '<span class="today-item__title">' + escapeHtml(it.title) + '</span>' +
+        '</span>' +
+        '<button class="today-item__undo" data-undo="' + it.id + '" type="button" aria-label="撤销 ' + escapeHtml(it.title) + '">撤销</button>' +
+      '</div>';
+    });
+    html += '</div>';
   }
 
   // 底部操作行
@@ -7916,6 +7984,8 @@ function openScheduleModal(editId) {
   if (errEl) errEl.textContent = '';
   var titleEl = document.getElementById('schedule-title');
   titleEl.classList.remove('field__input--error');
+  var quickGoalArea = document.getElementById('schedule-quick-goal');
+  if (quickGoalArea) quickGoalArea.hidden = true;
 
   openModal(modal);
   setTimeout(function() { titleEl.focus(); }, 60);
@@ -8114,6 +8184,8 @@ function initDashboard() {
       }
       var addBtn = e.target.closest('[data-schedule-add]');
       if (addBtn) { openScheduleModal(null); return; }
+      var undoBtn = e.target.closest('[data-undo]');
+      if (undoBtn) { undoScheduleCheckin(undoBtn.dataset.undo); return; }
       var manageBtn = e.target.closest('[data-schedule-manage]');
       if (manageBtn) {
         renderScheduleManageList();
@@ -8151,6 +8223,55 @@ function initDashboard() {
         updateWeekdayChips();
       });
     });
+
+    // 表单内快速新建目标（不退出弹窗）
+    var newGoalBtn = document.getElementById('schedule-new-goal-btn');
+    var quickGoalArea = document.getElementById('schedule-quick-goal');
+    if (newGoalBtn && quickGoalArea) {
+      newGoalBtn.addEventListener('click', function() {
+        quickGoalArea.hidden = !quickGoalArea.hidden;
+        if (!quickGoalArea.hidden) {
+          var nameEl = document.getElementById('schedule-new-goal-name');
+          nameEl.value = '';
+          nameEl.focus();
+        }
+      });
+    }
+    var createGoalBtn = document.getElementById('schedule-new-goal-create');
+    if (createGoalBtn) {
+      createGoalBtn.addEventListener('click', function() {
+        var name = (document.getElementById('schedule-new-goal-name').value || '').trim();
+        var target = parseFloat(document.getElementById('schedule-new-goal-target').value) || 0;
+        var unit = (document.getElementById('schedule-new-goal-unit').value || '').trim() || '次';
+        if (!name) {
+          showToast('先给它起个名字', 'warning');
+          document.getElementById('schedule-new-goal-name').focus();
+          return;
+        }
+        if (target <= 0) {
+          showToast('目标值得是正数，慢慢涨的那种', 'warning');
+          return;
+        }
+        var goals = loadGoals();
+        var ng = {
+          id: uuid(),
+          name: name,
+          why: '',
+          type: 'cumulative',
+          target: target,
+          startVal: 0,
+          currentValue: 0,
+          unit: unit,
+          checkins: [],
+          createdAt: new Date().toISOString()
+        };
+        goals.push(ng);
+        saveGoals(goals);
+        populateScheduleGoalSelect(ng.id);
+        quickGoalArea.hidden = true;
+        showToast('「' + name + '」建好了，已经挂上这件事', 'success');
+      });
+    }
   }
 
   // 日程管理弹窗：新建 / 编辑 / 删除（委托）

@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>LifeOS - 记录即存在</title>
-  <link rel="stylesheet" href="styles.css?v=20260926b">
+  <link rel="stylesheet" href="styles.css?v=20260926c">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -1299,11 +1299,29 @@
           </label>
           <label class="field">
             <span class="field__label">和目标有关吗（可选）</span>
-            <select id="schedule-goal" class="field__input">
-              <option value="">不挂钩，就是件日常的事</option>
-            </select>
+            <div class="schedule-goal-row">
+              <select id="schedule-goal" class="field__input">
+                <option value="">不挂钩，就是件日常的事</option>
+              </select>
+              <button type="button" class="btn btn--ghost btn--small schedule-goal-row__new" id="schedule-new-goal-btn" title="新建一个目标并挂钩">＋ 新建</button>
+            </div>
             <span class="field__hint">挂钩后，这件事的打卡会直接算进目标进度</span>
           </label>
+          <div class="schedule-quick-goal" id="schedule-quick-goal" hidden>
+            <input type="text" id="schedule-new-goal-name" class="field__input" placeholder="目标名，如：背完3500词" maxlength="30">
+            <div class="field-row">
+              <label class="field">
+                <span class="field__label">目标值</span>
+                <input type="number" id="schedule-new-goal-target" class="field__input" value="100" min="1" step="any">
+              </label>
+              <label class="field">
+                <span class="field__label">单位</span>
+                <input type="text" id="schedule-new-goal-unit" class="field__input" value="次" maxlength="6">
+              </label>
+            </div>
+            <span class="field__hint">先建个简单的（累计型）。想设习惯型、里程碑这些，去「我的 · 个人目标」慢慢配。</span>
+            <button type="button" class="btn btn--primary btn--small" id="schedule-new-goal-create">创建并挂钩</button>
+          </div>
           <div class="modal__actions">
             <button type="button" class="btn btn--ghost" data-close-modal>取消</button>
             <button type="submit" class="btn btn--primary" id="schedule-submit">放进来</button>
@@ -1440,7 +1458,7 @@
   </div>
 
   <script src="https://imgcache.qq.com/open/qcloud/cloudbase-js-sdk/1.7.2/cloudbase.full.js"></script>
-  <script src="cloud.js?v=20260926b"></script>
-  <script src="app.js?v=20260926b"></script>
+  <script src="cloud.js?v=20260926c"></script>
+  <script src="app.js?v=20260926c"></script>
 </body>
 </html>

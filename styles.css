@@ -7076,6 +7076,79 @@ body.has-photo .bg-glow {
   border-color: #e5484d;
 }
 
+/* 表单内：目标选择行 + 快速新建目标 */
+.schedule-goal-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.schedule-goal-row .field__input {
+  flex: 1;
+}
+.schedule-goal-row__new {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+.schedule-quick-goal {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 12px;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--r-md);
+  background: var(--bg-card);
+}
+.schedule-quick-goal .btn {
+  align-self: flex-start;
+}
+
+/* 今日已完成区 */
+.today-done-block {
+  margin-top: var(--s-3);
+  border-top: 1px solid var(--border);
+  padding-top: var(--s-2);
+}
+.today-done-block__title {
+  font-size: 11px;
+  color: var(--t-3);
+  margin: var(--s-2) 0 2px;
+  letter-spacing: 0.03em;
+}
+.today-item--checked {
+  padding: 6px 10px;
+  animation: none;
+  opacity: 1;
+  transform: none;
+}
+.today-item--checked .today-item__time {
+  color: var(--t-3);
+}
+.today-item--checked .today-item__title {
+  color: var(--t-2);
+  text-decoration: line-through;
+  text-decoration-color: var(--t-3);
+}
+.today-item__undo {
+  flex: 0 0 auto;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-family: var(--font);
+  font-size: 11px;
+  color: var(--t-3);
+  cursor: pointer;
+  transition: all var(--ease);
+  -webkit-tap-highlight-color: transparent;
+}
+.today-item__undo:hover,
+.today-item__undo:focus-visible {
+  color: var(--t-1);
+  border-color: var(--border-strong);
+  outline: none;
+}
+
 /* 日程管理列表 */
 .schedule-manage-list {
   display: flex;
