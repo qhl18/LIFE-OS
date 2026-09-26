@@ -8079,6 +8079,15 @@ function renderDashboard() {
 function initDashboard() {
   renderDashboard();
 
+  // 全局弹窗关闭委托：任何 [data-close-modal] 都能关掉自己所在的弹窗
+  // （此前只有目标弹窗的关闭按钮被单独绑定，日程等新弹窗的取消按钮失灵——已证实修复）
+  document.addEventListener('click', function(e) {
+    var closer = e.target.closest('[data-close-modal]');
+    if (!closer) return;
+    var modal = closer.closest('.modal');
+    if (modal) closeAnyModal(modal);
+  });
+
   // 四宫格：滑动时同步小圆点
   document.querySelectorAll('.quad-swipe').forEach(function(swipe) {
     var panel = swipe.closest('.quad-panel');
