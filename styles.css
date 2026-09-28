@@ -7205,3 +7205,380 @@ body.has-photo .bg-glow {
 }
 
 
+/* ============================================================
+   Sprint 3 — 睡眠 / 饮食 / 自定义卡片 / 梦 / 占比条 / 宫格
+   ============================================================ */
+
+/* 睡眠屏：关怀语 + 表单 */
+.quad-panel__care {
+  font-size: 13px;
+  color: var(--c-accent);
+  margin-bottom: var(--s-3);
+  line-height: 1.6;
+}
+.sleep-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+.sleep-form__row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--s-3);
+}
+.sleep-form__row + .sleep-form__row {
+  grid-template-columns: 1fr 1fr 1fr;
+}
+.field--inline .field__label {
+  font-size: 11px;
+  color: var(--t-3);
+  margin-bottom: 4px;
+}
+.sleep-form__bottom {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--s-3);
+}
+
+/* 占比条 */
+.sleep-ratio {
+  margin-top: 4px;
+}
+.sleep-ratio__bar {
+  display: flex;
+  height: 10px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--bg-card-2);
+  border: 1px solid var(--border);
+}
+.ratio-seg {
+  height: 100%;
+  transition: width 400ms ease;
+}
+.ratio-seg--deep  { background: var(--c-accent); }
+.ratio-seg--light { background: var(--c-accent-2); }
+.ratio-seg--awake { background: var(--c-warning); }
+.sleep-ratio__text {
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--t-3);
+  text-align: right;
+}
+
+/* 梦的列表 */
+.sleep-dreams {
+  margin-top: var(--s-3);
+  padding-top: var(--s-3);
+  border-top: 1px dashed var(--border);
+}
+.dream-row {
+  display: flex;
+  gap: var(--s-3);
+  font-size: 12px;
+  color: var(--t-2);
+  padding: 4px 0;
+  line-height: 1.5;
+}
+.dream-row__time {
+  flex: 0 0 56px;
+  color: var(--c-accent);
+  font-variant-numeric: tabular-nums;
+}
+.dream-row__text {
+  flex: 1;
+}
+
+/* 饮食屏 */
+.diet-meal {
+  margin-bottom: var(--s-3);
+  padding-bottom: var(--s-3);
+  border-bottom: 1px dashed var(--border);
+}
+.diet-meal:last-of-type {
+  border-bottom: none;
+}
+.diet-meal__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 6px;
+}
+.diet-meal__name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--t-1);
+}
+.diet-meal__time {
+  font-size: 11px;
+  color: var(--t-3);
+}
+.diet-meal__row {
+  display: flex;
+  gap: var(--s-2);
+}
+.diet-meal__row .field__input {
+  flex: 1;
+}
+
+.diet-today-list {
+  margin-top: var(--s-3);
+  padding-top: var(--s-3);
+  border-top: 1px dashed var(--border);
+}
+.diet-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  font-size: 12px;
+  color: var(--t-2);
+  padding: 4px 0;
+  line-height: 1.4;
+}
+.diet-row__time {
+  flex: 0 0 44px;
+  color: var(--c-accent);
+  font-variant-numeric: tabular-nums;
+}
+.diet-row__meal {
+  flex: 0 0 36px;
+  color: var(--t-3);
+}
+.diet-row__content {
+  flex: 1;
+  color: var(--t-1);
+}
+.icon-btn {
+  flex: 0 0 auto;
+  background: none;
+  border: none;
+  color: var(--t-3);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 0 4px;
+  -webkit-tap-highlight-color: transparent;
+}
+.icon-btn:hover { color: var(--c-danger); }
+
+.diet-goal-link {
+  margin-top: var(--s-3);
+  padding-top: var(--s-3);
+  border-top: 1px dashed var(--border);
+}
+.diet-goal-link__label {
+  font-size: 11px;
+  color: var(--t-3);
+  letter-spacing: 0.05em;
+  margin-bottom: var(--s-2);
+}
+.diet-goal-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  font-size: 12px;
+  margin-bottom: 6px;
+}
+.diet-goal-row__name {
+  flex: 0 0 80px;
+  color: var(--t-1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.diet-goal-row__bar {
+  flex: 1;
+  height: 6px;
+  background: var(--bg-card-2);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.diet-goal-row__fill {
+  display: block;
+  height: 100%;
+  background: var(--c-accent);
+  transition: width 400ms ease;
+}
+.diet-goal-row__pct {
+  flex: 0 0 36px;
+  text-align: right;
+  color: var(--c-accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.muted-tiny {
+  font-size: 12px;
+  color: var(--t-3);
+  margin: 0;
+}
+
+/* 自定义卡片网格 */
+#custom-cards-grid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+}
+.custom-empty {
+  text-align: center;
+  padding: var(--s-5) var(--s-3);
+}
+.custom-empty__text {
+  font-size: 13px;
+  color: var(--t-2);
+  margin-bottom: var(--s-4);
+  line-height: 1.7;
+}
+.cc-card {
+  background: var(--bg-card-2);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  padding: var(--s-3);
+}
+.cc-card__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--s-2);
+}
+.cc-card__name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--c-accent);
+}
+.cc-card__del {
+  background: none;
+  border: none;
+  color: var(--t-3);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 0 4px;
+  -webkit-tap-highlight-color: transparent;
+}
+.cc-card__del:hover { color: var(--c-danger); }
+.cc-counter__today,
+.cc-score__today {
+  font-size: 13px;
+  color: var(--t-2);
+  margin-bottom: 2px;
+}
+.cc-counter__today strong,
+.cc-score__today strong {
+  font-size: 22px;
+  color: var(--c-accent);
+  margin-left: 4px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.cc-counter__week {
+  font-size: 11px;
+  color: var(--t-3);
+  margin-bottom: var(--s-3);
+}
+.cc-counter__actions {
+  display: flex;
+  gap: var(--s-2);
+}
+.cc-plus {
+  flex: 1;
+  padding: 8px 0;
+  background: var(--c-accent);
+  color: #0d0b08;
+  border: none;
+  border-radius: var(--r-sm);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.cc-plus--alt {
+  background: var(--bg-modal);
+  color: var(--c-accent);
+  border: 1px solid var(--border-strong);
+}
+.cc-score__scale {
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.cc-score-num {
+  flex: 1 0 18%;
+  padding: 6px 0;
+  background: var(--bg-modal);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  color: var(--t-2);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.cc-score-num:hover { border-color: var(--c-accent); color: var(--c-accent); }
+.cc-text__last {
+  font-size: 13px;
+  color: var(--t-1);
+  line-height: 1.5;
+  padding: var(--s-2) 0;
+}
+
+/* 头部管理按钮（小图标）*/
+.quad-panel__manage {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: var(--t-2);
+  cursor: pointer;
+  padding: 4px;
+  border-radius: var(--r-sm);
+  display: flex;
+  -webkit-tap-highlight-color: transparent;
+}
+.quad-panel__manage:hover { color: var(--c-accent); background: var(--bg-card-2); }
+.quad-panel__manage svg { width: 16px; height: 16px; }
+.quad-panel__manage + .quad-panel__manage {
+  margin-left: 0;
+}
+
+/* 卡片管理弹窗 */
+.cc-manage__row {
+  display: grid;
+  grid-template-columns: 1fr 60px 60px 28px;
+  gap: var(--s-3);
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px dashed var(--border);
+  font-size: 13px;
+}
+.cc-manage__name { color: var(--t-1); }
+.cc-manage__type { color: var(--t-3); font-size: 11px; }
+.cc-manage__count { color: var(--c-accent); text-align: right; font-variant-numeric: tabular-nums; }
+
+/* 预设芯片 */
+.cc-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+.cc-presets__label {
+  width: 100%;
+  font-size: 11px;
+  color: var(--t-3);
+  margin-bottom: 2px;
+}
+.preset-chip {
+  background: var(--bg-card-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--t-1);
+  padding: 5px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.preset-chip:hover { border-color: var(--c-accent); color: var(--c-accent); }
+
+/* 面板尺寸：睡眠面板需要装表单，要比普通面板高一些 */
+.quad-panel--tall .quad-slide { min-height: 320px; }
+@media (min-width: 900px) {
+  .quad-panel--tall .quad-slide { min-height: 360px; }
+}
+
+

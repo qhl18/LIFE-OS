@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>LifeOS - 记录即存在</title>
-  <link rel="stylesheet" href="styles.css?v=20260926c">
+  <link rel="stylesheet" href="styles.css?v=20260927a">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -158,8 +158,8 @@
           </div>
         </section>
 
-        <!-- 右上：睡眠（滑动：饮食 / 自定义） -->
-        <section class="quad-panel" data-quad="sleep" aria-label="睡眠">
+        <!-- 右上：睡眠（滑动：饮食）· 个人定制已并入左下自定义卡片（按功能总表） -->
+        <section class="quad-panel quad-panel--tall" data-quad="sleep" aria-label="睡眠">
           <div class="quad-panel__head">
             <h2 class="quad-panel__title">睡眠</h2>
             <span class="quad-panel__lock" aria-hidden="true" title="此看板可单独加锁">
@@ -171,29 +171,100 @@
             <div class="quad-dots" aria-hidden="true">
               <span class="quad-dot quad-dot--active"></span>
               <span class="quad-dot"></span>
-              <span class="quad-dot"></span>
             </div>
           </div>
-          <div class="quad-swipe">
-            <div class="quad-slide">
-              <p class="quad-slide__hint">床位已经铺好：<strong>入睡、醒来、深睡浅睡、梦</strong>。记满一晚，它就开始懂你。</p>
-              <span class="quad-slide__tag">Sprint 3 开门</span>
+          <div class="quad-swipe" id="sleep-swipe">
+            <div class="quad-slide" id="sleep-slide-main">
+              <p class="quad-panel__care" id="sleep-care">记一下昨晚的睡眠，它就认识你了</p>
+              <form id="sleep-form" class="sleep-form" novalidate>
+                <div class="sleep-form__row">
+                  <label class="field field--inline">
+                    <span class="field__label">入睡</span>
+                    <input type="time" id="sleep-bedtime" class="field__input" value="23:30">
+                  </label>
+                  <label class="field field--inline">
+                    <span class="field__label">醒来</span>
+                    <input type="time" id="sleep-waketime" class="field__input">
+                  </label>
+                </div>
+                <div class="sleep-form__row">
+                  <label class="field field--inline">
+                    <span class="field__label">深睡（分）</span>
+                    <input type="number" id="sleep-deepMin" class="field__input" min="0" placeholder="可选">
+                  </label>
+                  <label class="field field--inline">
+                    <span class="field__label">浅睡（分）</span>
+                    <input type="number" id="sleep-lightMin" class="field__input" min="0" placeholder="可选">
+                  </label>
+                  <label class="field field--inline">
+                    <span class="field__label">醒着（分）</span>
+                    <input type="number" id="sleep-awakeMin" class="field__input" min="0" placeholder="可选">
+                  </label>
+                </div>
+                <div class="sleep-ratio" aria-label="深浅睡占比">
+                  <div class="sleep-ratio__bar" id="sleep-ratio-bar"></div>
+                  <p class="sleep-ratio__text" id="sleep-ratio-text">填一下深浅睡占比，曲线更立体</p>
+                </div>
+                <label class="field">
+                  <span class="field__label">午睡（分）</span>
+                  <input type="number" id="sleep-napMinutes" class="field__input" min="0" placeholder="可选">
+                </label>
+                <div class="sleep-form__bottom">
+                  <button type="button" class="btn btn--ghost btn--small" id="sleep-dream-btn">记个梦</button>
+                  <button type="submit" class="btn btn--primary btn--small">记下睡眠</button>
+                </div>
+                <div class="sleep-dreams" id="sleep-dreams-list" aria-label="今日梦的"></div>
+              </form>
             </div>
-            <div class="quad-slide">
-              <p class="quad-slide__hint">这边是<strong>饮食</strong>：一日三餐。以后拍张照就能记——识别是阶段二的事，先说好。</p>
-              <span class="quad-slide__tag">Sprint 3 开门</span>
-            </div>
-            <div class="quad-slide">
-              <p class="quad-slide__hint">第三屏<strong>由你定义</strong>：情绪、月经、或者别的什么，你说了算。</p>
-              <span class="quad-slide__tag">Sprint 3 开门</span>
+            <div class="quad-slide" id="diet-slide-main">
+              <div class="diet-meal" data-meal="breakfast">
+                <div class="diet-meal__head"><span class="diet-meal__name">早餐</span><span class="diet-meal__time" id="diet-time-breakfast"></span></div>
+                <div class="diet-meal__row">
+                  <input type="text" id="diet-input-breakfast" class="field__input" placeholder="吃了什么？">
+                  <button type="button" class="btn btn--primary btn--small" id="diet-add-breakfast">记</button>
+                </div>
+              </div>
+              <div class="diet-meal" data-meal="lunch">
+                <div class="diet-meal__head"><span class="diet-meal__name">午餐</span><span class="diet-meal__time" id="diet-time-lunch"></span></div>
+                <div class="diet-meal__row">
+                  <input type="text" id="diet-input-lunch" class="field__input" placeholder="吃了什么？">
+                  <button type="button" class="btn btn--primary btn--small" id="diet-add-lunch">记</button>
+                </div>
+              </div>
+              <div class="diet-meal" data-meal="dinner">
+                <div class="diet-meal__head"><span class="diet-meal__name">晚餐</span><span class="diet-meal__time" id="diet-time-dinner"></span></div>
+                <div class="diet-meal__row">
+                  <input type="text" id="diet-input-dinner" class="field__input" placeholder="吃了什么？">
+                  <button type="button" class="btn btn--primary btn--small" id="diet-add-dinner">记</button>
+                </div>
+              </div>
+              <div class="diet-meal" data-meal="snack">
+                <div class="diet-meal__head"><span class="diet-meal__name">加餐</span><span class="diet-meal__time" id="diet-time-snack"></span></div>
+                <div class="diet-meal__row">
+                  <input type="text" id="diet-input-snack" class="field__input" placeholder="喝了杯什么？">
+                  <button type="button" class="btn btn--primary btn--small" id="diet-add-snack">记</button>
+                </div>
+              </div>
+              <div class="diet-today-list" id="diet-today-list"></div>
+              <div class="diet-goal-link" id="diet-goal-link"></div>
             </div>
           </div>
         </section>
 
-        <!-- 左下：自定义记录 -->
-        <section class="quad-panel quad-panel--static" data-quad="custom" aria-label="自定义记录">
+        <!-- 左下：自定义记录（卡片系统 v1：计数 / 打分 / 文字） -->
+        <section class="quad-panel quad-panel--tall" data-quad="custom" aria-label="自定义记录">
           <div class="quad-panel__head">
             <h2 class="quad-panel__title">自定义记录</h2>
+            <button class="quad-panel__manage" id="cc-new-btn" type="button" aria-label="新建卡片">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                <path d="M12 5v14M5 12h14" stroke-linecap="round"/>
+              </svg>
+            </button>
+            <button class="quad-panel__manage" id="cc-manage-btn" type="button" aria-label="管理卡片">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+                <path d="M4 6h16M4 12h16M4 18h16" stroke-linecap="round"/>
+              </svg>
+            </button>
             <span class="quad-panel__lock" aria-hidden="true" title="此看板可单独加锁">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                 <rect x="5" y="11" width="14" height="9" rx="2"/>
@@ -202,9 +273,8 @@
             </span>
           </div>
           <div class="quad-swipe">
-            <div class="quad-slide">
-              <p class="quad-slide__hint">体重、健身、情感点滴、灵感、小说进度——<strong>想记什么，卡片自己开</strong>。</p>
-              <span class="quad-slide__tag">Sprint 4 开门</span>
+            <div class="quad-slide" id="custom-slide-main">
+              <div id="custom-cards-grid"><!-- 自定义卡片（JS 渲染） --></div>
             </div>
           </div>
         </section>
@@ -1221,21 +1291,31 @@
             <path d="M8 3v4M16 3v4M3 10h18"/>
           </svg>
           <span>记日程</span>
-          <span class="quick-sheet__hint">Sprint 2 到岗</span>
+          <span class="quick-sheet__hint">排今天的事</span>
         </button>
         <button class="quick-sheet__item" type="button" data-quick="sleep">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
             <path d="M20 12.5A8.5 8.5 0 1111.5 4a7 7 0 008.5 8.5z"/>
           </svg>
           <span>记睡眠</span>
-          <span class="quick-sheet__hint">Sprint 3 到岗</span>
+          <span class="quick-sheet__hint">昨晚睡得怎样</span>
         </button>
         <button class="quick-sheet__item" type="button" data-quick="note">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
             <path d="M12 3l1.9 5.6H20l-4.9 3.8 1.8 5.6-4.9-3.5-4.9 3.5 1.8-5.6L4.2 8.6h6z"/>
           </svg>
           <span>记灵感</span>
-          <span class="quick-sheet__hint">Sprint 4 到岗</span>
+          <span class="quick-sheet__hint">写进灵感卡</span>
+        </button>
+        <button class="quick-sheet__item" type="button" data-quick="custom">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <rect x="3" y="3" width="7" height="7" rx="1.5"/>
+            <rect x="14" y="3" width="7" height="7" rx="1.5"/>
+            <rect x="3" y="14" width="7" height="7" rx="1.5"/>
+            <path d="M17.5 14v6M14.5 17h6" stroke-linecap="round"/>
+          </svg>
+          <span>自定义</span>
+          <span class="quick-sheet__hint">往你的卡片里记</span>
         </button>
         <button class="quick-sheet__item" type="button" data-quick="money">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
@@ -1342,6 +1422,101 @@
         </div>
         <div class="schedule-manage-list" id="schedule-manage-list">
           <!-- JS 渲染 -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Sprint 3：记梦弹窗 -->
+    <div class="modal" id="dream-modal" hidden>
+      <div class="modal__overlay" data-close-modal></div>
+      <div class="modal__panel">
+        <div class="modal__title-row">
+          <h2 class="modal__title">记个梦</h2>
+        </div>
+        <p class="decompose-hint">醒着的这半分钟还记得，写下来，它就是你的了</p>
+        <form id="dream-form" class="modal__form" novalidate>
+          <label class="field">
+            <span class="field__label">梦见了什么</span>
+            <textarea id="dream-text" class="field__input" rows="4" maxlength="500" placeholder="能记多少写多少，碎片也算"></textarea>
+          </label>
+          <div class="modal__actions">
+            <button type="button" class="btn btn--ghost" data-close-modal>取消</button>
+            <button type="submit" class="btn btn--primary" id="dream-submit">记下这个梦</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Sprint 3：新建自定义卡片 -->
+    <div class="modal" id="custom-card-modal" hidden>
+      <div class="modal__overlay" data-close-modal></div>
+      <div class="modal__panel">
+        <div class="modal__title-row">
+          <h2 class="modal__title">开一张新卡片</h2>
+        </div>
+        <p class="decompose-hint">名字你自己起，这里不预设、不评判——只有你知道的事，正好放这</p>
+        <form id="custom-card-form" class="modal__form" novalidate>
+          <label class="field">
+            <span class="field__label">卡片叫什么</span>
+            <input type="text" id="cc-name" class="field__input" placeholder="例如：情绪 / 生理需求 / 咖啡因" maxlength="12" required>
+            <span class="field__error" id="cc-name-error"></span>
+          </label>
+          <label class="field">
+            <span class="field__label">哪种记法</span>
+            <select id="cc-type" class="field__input">
+              <option value="counter">计数 · 点一下 +1，适合频率</option>
+              <option value="score">打分 · 1-10 分，适合感受</option>
+              <option value="text">文字 · 写一段话，适合灵感</option>
+            </select>
+            <span class="field__hint">数值型（体重、存款这类）Sprint 4 就位</span>
+          </label>
+          <div class="cc-presets" id="cc-presets">
+            <span class="cc-presets__label">手边常用的：</span>
+            <button type="button" class="preset-chip" data-preset="情绪打分">情绪（打分）</button>
+            <button type="button" class="preset-chip" data-preset="生理需求计数">生理需求（计数）</button>
+            <button type="button" class="preset-chip" data-preset="灵感文字">灵感（文字）</button>
+          </div>
+          <div class="modal__actions">
+            <button type="button" class="btn btn--ghost" data-close-modal>取消</button>
+            <button type="submit" class="btn btn--primary" id="cc-submit">开卡</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Sprint 3：文字卡片记录（灵感 / 文字型卡片通用） -->
+    <div class="modal" id="custom-text-modal" hidden>
+      <div class="modal__overlay" data-close-modal></div>
+      <div class="modal__panel">
+        <div class="modal__title-row">
+          <h2 class="modal__title" id="ct-modal-title">记一笔</h2>
+        </div>
+        <form id="custom-text-form" class="modal__form" novalidate>
+          <input type="hidden" id="ct-card-id">
+          <label class="field">
+            <span class="field__label" id="ct-field-label">写点什么</span>
+            <textarea id="ct-text" class="field__input" rows="4" maxlength="2000" placeholder="此刻想说的，写下来就好"></textarea>
+          </label>
+          <div class="modal__actions">
+            <button type="button" class="btn btn--ghost" data-close-modal>取消</button>
+            <button type="submit" class="btn btn--primary" id="ct-submit">记下了</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Sprint 3：卡片管理（改名 Sprint 4，先删与看量） -->
+    <div class="modal" id="custom-manage-modal" hidden>
+      <div class="modal__overlay" data-close-modal></div>
+      <div class="modal__panel">
+        <div class="modal__title-row">
+          <h2 class="modal__title">我的卡片</h2>
+        </div>
+        <p class="decompose-hint">删卡不动卡里的历史记录，它们会一直躺在你的数据里</p>
+        <div id="cc-manage-list"><!-- JS 渲染 --></div>
+        <div class="modal__actions">
+          <button type="button" class="btn btn--primary" id="cc-manage-add">＋ 再开一张</button>
+          <button type="button" class="btn btn--ghost" data-close-modal>关掉</button>
         </div>
       </div>
     </div>
@@ -1458,7 +1633,7 @@
   </div>
 
   <script src="https://imgcache.qq.com/open/qcloud/cloudbase-js-sdk/1.7.2/cloudbase.full.js"></script>
-  <script src="cloud.js?v=20260926c"></script>
-  <script src="app.js?v=20260926c"></script>
+  <script src="cloud.js?v=20260927a"></script>
+  <script src="app.js?v=20260927a"></script>
 </body>
 </html>

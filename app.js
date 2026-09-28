@@ -8197,6 +8197,58 @@ function initDashboard() {
     });
   }
 
+  // Sprint 3：自定义面板事件委托
+  var customGrid = document.getElementById('custom-cards-grid');
+  if (customGrid) {
+    customGrid.addEventListener('click', function(e) {
+      var incBtn = e.target.closest('[data-cc-inc]');
+      if (incBtn) {
+        customCardIncrement(incBtn.dataset.ccInc, parseInt(incBtn.dataset.ccDelta, 10));
+        return;
+      }
+      var scoreBtn = e.target.closest('[data-cc-score]');
+      if (scoreBtn) {
+        customCardScore(scoreBtn.dataset.ccScore, parseInt(scoreBtn.dataset.ccNum, 10));
+        return;
+      }
+      var writeBtn = e.target.closest('[data-cc-write]');
+      if (writeBtn) {
+        openCustomTextModal(writeBtn.dataset.ccWrite);
+        return;
+      }
+      var delBtn = e.target.closest('[data-cc-del]');
+      if (delBtn) {
+        deleteCustomCard(delBtn.dataset.ccDel);
+        return;
+      }
+      var newBtn = e.target.closest('[data-cc-new]');
+      if (newBtn) {
+        openCustomCardModal();
+        return;
+      }
+    });
+  }
+
+  // 饮食面板事件委托
+  var dietList = document.getElementById('diet-today-list');
+  if (dietList) {
+    dietList.addEventListener('click', function(e) {
+      var delBtn = e.target.closest('[data-del-diet]');
+      if (delBtn) { deleteDietEntry(delBtn.dataset.delDiet); return; }
+    });
+  }
+
+  // 卡片管理弹窗事件委托
+  var ccManageList = document.getElementById('cc-manage-list');
+  if (ccManageList) {
+    ccManageList.addEventListener('click', function(e) {
+      var delBtn = e.target.closest('[data-cc-del-mng]');
+      if (delBtn) { deleteCustomCard(delBtn.dataset.ccDelMng); return; }
+    });
+  }
+  var ccManageHeadBtn = document.getElementById('cc-manage-btn');
+  if (ccManageHeadBtn) ccManageHeadBtn.addEventListener('click', openCustomManage);
+
   // 头部「日程管理」按钮
   var manageHeadBtn = document.getElementById('schedule-manage-btn');
   if (manageHeadBtn) {
@@ -8318,13 +8370,580 @@ function initDashboard() {
   sheet.querySelectorAll('.quick-sheet__item').forEach(function(item) {
     item.addEventListener('click', function() {
       sheet.hidden = true;
-      if (item.dataset.quick === 'schedule') {
-        openScheduleModal(null);
-        return;
-      }
+      var handled = routeQuickAction(item.dataset.quick);
+      if (handled !== false) return;
       var sprint = SPRINT_HINT[item.dataset.quick] || '下个迭代';
       showToast('还没到它出场的时候，' + sprint + ' 见', 'warning');
     });
+  });
+}
+
+// ============================================================
+// Sprint 3：睡眠屏 / 饮食屏 / 自定义卡片 / ＋ 抽屉联通
+// ============================================================
+
+// ---- 存储 key（新增，沿用 lifeos_ 前缀） ----
+var STORAGE_SLEEP = 'lifeos_sleep';
+var STORAGE_DIET = 'lifeos_diet';
+var STORAGE_CUSTOM_CARDS = 'lifeos_custom_cards';
+var STORAGE_CUSTOM_ENTRIES = 'lifeos_custom_entries';
+
+// ---- 数据层 ----
+function loadSleep() { return loadJSON(STORAGE_SLEEP, []); }
+function saveSleep(arr) { saveJSON(STORAGE_SLEEP, arr); }
+function loadDiet() { return loadJSON(STORAGE_DIET, []); }
+function saveDiet(arr) { saveJSON(STORAGE_DIET, arr); }
+function loadCustomCards() { return loadJSON(STORAGE_CUSTOM_CARDS, []); }
+function saveCustomCards(arr) { saveJSON(STORAGE_CUSTOM_CARDS, arr); }
+function loadCustomEntries() { return loadJSON(STORAGE_CUSTOM_ENTRIES, []); }
+function saveCustomEntries(arr) { saveJSON(STORAGE_CUSTOM_ENTRIES, arr); }
+
+function findSleep(dateKey) {
+  return loadSleep().find(function(r) { return r.date === dateKey; });
+}
+function findDiet(dateKey) {
+  return loadDiet().filter(function(r) { return r.date === dateKey; });
+}
+function customEntriesForCard(cardId, dateKey) {
+  return loadCustomEntries().filter(function(e) {
+    return e.cardId === cardId && (!dateKey || e.date === dateKey);
+  });
+}
+function customEntriesAll(cardId) {
+  return loadCustomEntries().filter(function(e) { return e.cardId === cardId; });
+}
+
+// ---- 工具 ----
+function parseHM(str) {
+  if (!str) return null;
+  var p = String(str).split(':');
+  var h = parseInt(p[0], 10), m = parseInt(p[1], 10);
+  if (isNaN(h) || isNaN(m)) return null;
+  return h * 60 + m;
+}
+function fmtDuration(min) {
+  if (min == null || isNaN(min)) return '—';
+  var h = Math.floor(min / 60), m = Math.round(min % 60);
+  if (h <= 0) return m + ' 分钟';
+  if (m === 0) return h + ' 小时';
+  return h + ' 小时 ' + m + ' 分钟';
+}
+function isLateNight(bedtimeHM) {
+  // 23:00 之后入睡算熬夜
+  return bedtimeHM != null && bedtimeHM >= 23 * 60;
+}
+function isShortSleep(totalMin) {
+  return totalMin != null && totalMin < 5 * 60;
+}
+
+// ---- 渲染：右上第一屏（睡眠） ----
+function renderSleepPanel() {
+  var today = todayKey();
+  var rec = findSleep(today);
+  var slide = document.getElementById('sleep-slide-main');
+  if (!slide) return;
+
+  // 默认填入当前时间作为建议
+  if (!rec) {
+    var nowHM = String(new Date().getHours()).padStart(2, '0') + ':' + String(new Date().getMinutes()).padStart(2, '0');
+    var bedtimeEl = document.getElementById('sleep-bedtime');
+    var wakeEl = document.getElementById('sleep-waketime');
+    if (bedtimeEl && !bedtimeEl.value) bedtimeEl.value = '23:30';
+    if (wakeEl && !wakeEl.value) wakeEl.value = nowHM;
+  }
+
+  // 顶部关怀语
+  var care = document.getElementById('sleep-care');
+  if (care) {
+    var careMsg = '';
+    if (rec) {
+      var totalMin = null;
+      var b = parseHM(rec.bedtime), w = parseHM(rec.waketime);
+      if (b != null && w != null) {
+        // 处理跨天
+        totalMin = w >= b ? (w - b) : (24 * 60 - b + w);
+      }
+      if (totalMin != null && totalMin < 5 * 60) {
+        careMsg = '昨晚只睡了 ' + fmtDuration(totalMin) + '——今天别逞强，少安排点高强度的事';
+      } else if (totalMin != null && totalMin >= 8 * 60) {
+        careMsg = '昨晚睡得不错，今天应该精神很好';
+      } else if (totalMin != null) {
+        careMsg = '昨晚睡了 ' + fmtDuration(totalMin) + '，今天稳着来';
+      } else {
+        careMsg = '记一下昨晚的睡眠，它就认识你了';
+      }
+    } else {
+      var h = new Date().getHours();
+      if (h < 6) careMsg = '还没睡？或者刚睡下——记一下也来得及';
+      else if (h < 11) careMsg = '睡得怎么样？简单记一下';
+      else careMsg = '记一下昨晚的睡眠，它就认识你了';
+    }
+    care.textContent = careMsg;
+  }
+
+  // 回填已保存的值
+  if (rec) {
+    ['bedtime','waketime','deepMin','lightMin','awakeMin','napMinutes'].forEach(function(k) {
+      var el = document.getElementById('sleep-' + k);
+      if (el && rec[k] != null && rec[k] !== '') el.value = rec[k];
+    });
+    var noteEl = document.getElementById('sleep-note');
+    if (noteEl) noteEl.value = rec.note || '';
+  }
+
+  // 占比条（深睡 / 浅睡 / 醒着）
+  var bar = document.getElementById('sleep-ratio-bar');
+  var ratioText = document.getElementById('sleep-ratio-text');
+  if (bar) {
+    var deep = parseInt((rec && rec.deepMin) || 0, 10) || 0;
+    var light = parseInt((rec && rec.lightMin) || 0, 10) || 0;
+    var awake = parseInt((rec && rec.awakeMin) || 0, 10) || 0;
+    var total = deep + light + awake;
+    if (total > 0) {
+      bar.innerHTML = '<div class=\"ratio-seg ratio-seg--deep\" style=\"width:' + (deep * 100 / total) + '%\" title=\"深睡 ' + deep + ' 分\"></div>'
+        + '<div class=\"ratio-seg ratio-seg--light\" style=\"width:' + (light * 100 / total) + '%\" title=\"浅睡 ' + light + ' 分\"></div>'
+        + '<div class=\"ratio-seg ratio-seg--awake\" style=\"width:' + (awake * 100 / total) + '%\" title=\"醒着 ' + awake + ' 分\"></div>';
+      if (ratioText) ratioText.textContent = '深 ' + Math.round(deep * 100 / total) + '% · 浅 ' + Math.round(light * 100 / total) + '% · 醒 ' + Math.round(awake * 100 / total) + '%';
+    } else {
+      bar.innerHTML = '';
+      if (ratioText) ratioText.textContent = '填一下深浅睡占比，曲线更立体';
+    }
+  }
+
+  // 梦列表（今天）
+  var dreamsList = document.getElementById('sleep-dreams-list');
+  if (dreamsList) {
+    var dreams = customEntriesAll('').filter(function(e) { return false; }); // 占位
+    // 梦从 sleep 记录自身的 dreamText 读取 + custom_entries 中 dream 标记的
+    var dreamsFromEntries = loadCustomEntries().filter(function(e) {
+      return e.date === today && e.kind === 'dream';
+    });
+    var allDreams = dreamsFromEntries;
+    if (rec && rec.dreamText) {
+      allDreams = [{ text: rec.dreamText, time: '昨夜', isOld: true }].concat(allDreams);
+    }
+    if (allDreams.length === 0) {
+      dreamsList.innerHTML = '<p class=\"muted-tiny\">还没有梦的记录，点右上「记个梦」</p>';
+    } else {
+      dreamsList.innerHTML = allDreams.map(function(d) {
+        return '<div class=\"dream-row\"><span class=\"dream-row__time\">' + escapeHtml(d.time || '') + '</span><span class=\"dream-row__text\">' + escapeHtml(d.text || '') + '</span></div>';
+      }).join('');
+    }
+  }
+}
+
+function saveSleepFromForm(e) {
+  if (e) e.preventDefault();
+  var rec = {
+    date: todayKey(),
+    bedtime: (document.getElementById('sleep-bedtime') || {}).value || '',
+    waketime: (document.getElementById('sleep-waketime') || {}).value || '',
+    deepMin: (document.getElementById('sleep-deepMin') || {}).value || '',
+    lightMin: (document.getElementById('sleep-lightMin') || {}).value || '',
+    awakeMin: (document.getElementById('sleep-awakeMin') || {}).value || '',
+    napMinutes: (document.getElementById('sleep-napMinutes') || {}).value || '',
+    note: (document.getElementById('sleep-note') || {}).value || ''
+  };
+  var arr = loadSleep();
+  var idx = arr.findIndex(function(r) { return r.date === rec.date; });
+  if (idx >= 0) arr[idx] = rec; else arr.push(rec);
+  saveSleep(arr);
+  renderSleepPanel();
+
+  // 联动文案（熬夜/时长异常 → 给次日的打卡挂上关怀）
+  var bHM = parseHM(rec.bedtime);
+  var totalMin = null;
+  if (bHM != null && rec.waketime) {
+    var wHM = parseHM(rec.waketime);
+    if (wHM != null) totalMin = wHM >= bHM ? (wHM - bHM) : (24 * 60 - bHM + wHM);
+  }
+  if (isLateNight(bHM) || isShortSleep(totalMin)) {
+    showToast('睡得有点赶，今天打卡的时候我会念叨一句', 'info');
+  } else {
+    showToast('睡得记下了', 'success');
+  }
+}
+
+// ---- 渲染：右上第二屏（饮食） ----
+function renderDietPanel() {
+  var today = todayKey();
+  var slide = document.getElementById('diet-slide-main');
+  if (!slide) return;
+
+  // 今日三餐
+  var list = document.getElementById('diet-today-list');
+  if (list) {
+    var meals = findDiet(today);
+    if (meals.length === 0) {
+      list.innerHTML = '<p class=\"muted-tiny\">还没记，三餐的时间到了随手一下</p>';
+    } else {
+      list.innerHTML = meals.map(function(m) {
+        return '<div class=\"diet-row\"><span class=\"diet-row__time\">' + escapeHtml(m.time || '') + '</span><span class=\"diet-row__meal\">' + escapeHtml(m.meal || '') + '</span><span class=\"diet-row__content\">' + escapeHtml(m.content || '') + '</span><button type=\"button\" class=\"icon-btn\" data-del-diet=\"' + m.id + '\" aria-label=\"删\">×</button></div>';
+      }).join('');
+    }
+  }
+
+  // 健身/体重类目标联动显示
+  var link = document.getElementById('diet-goal-link');
+  if (link) {
+    var goals = loadGoals().filter(function(g) {
+      if (g.completed || g.paused) return false;
+      return g.type === 'counter';
+    });
+    if (goals.length === 0) {
+      link.innerHTML = '<p class=\"muted-tiny\">在「我的 · 目标」里开个「体重 75kg」这类卡片，这里会同步它的进度</p>';
+    } else {
+      link.innerHTML = '<div class=\"diet-goal-link__label\">在走的相关目标</div>'
+        + goals.map(function(g) {
+          var pct = g.target ? Math.min(100, Math.round(((g.currentValue || 0) * 100) / g.target)) : 0;
+          return '<div class=\"diet-goal-row\"><span class=\"diet-goal-row__name\">' + escapeHtml(g.name) + '</span><span class=\"diet-goal-row__bar\"><span class=\"diet-goal-row__fill\" style=\"width:' + pct + '%\"></span></span><span class=\"diet-goal-row__pct\">' + pct + '%</span></div>';
+        }).join('');
+    }
+  }
+}
+
+function addDietEntry(meal) {
+  var contentEl = document.getElementById('diet-input-' + meal);
+  if (!contentEl) return;
+  var content = (contentEl.value || '').trim();
+  if (!content) {
+    contentEl.classList.add('field__input--error');
+    setTimeout(function() { contentEl.classList.remove('field__input--error'); }, 1200);
+    return;
+  }
+  var now = new Date();
+  var time = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+  var arr = loadDiet();
+  arr.push({
+    id: uuid(),
+    date: todayKey(),
+    meal: meal,
+    time: time,
+    content: content
+  });
+  saveDiet(arr);
+  contentEl.value = '';
+  renderDietPanel();
+  showToast(mealLabel(meal) + '记下了', 'success');
+}
+
+function deleteDietEntry(id) {
+  var arr = loadDiet().filter(function(r) { return r.id !== id; });
+  saveDiet(arr);
+  renderDietPanel();
+}
+
+function mealLabel(meal) {
+  return { breakfast: '早餐', lunch: '午餐', dinner: '晚餐', snack: '加餐' }[meal] || meal;
+}
+
+// ---- 渲染：左下（自定义卡片网格） ----
+function renderCustomPanel() {
+  var panel = document.getElementById('custom-cards-grid');
+  if (!panel) return;
+  var cards = loadCustomCards();
+  if (cards.length === 0) {
+    panel.innerHTML = '<div class=\"custom-empty\">'
+      + '<p class=\"custom-empty__text\">还没卡片。开一张——名字你起，记录你自己看。</p>'
+      + '<button type=\"button\" class=\"btn btn--primary btn--small\" data-cc-new>＋ 开第一张卡</button>'
+      + '</div>';
+    return;
+  }
+  var today = todayKey();
+  panel.innerHTML = cards.map(function(c) {
+    var entries = customEntriesForCard(c.id, today);
+    var last7 = customEntriesAll(c.id).filter(function(e) {
+      var d = new Date(e.date);
+      var diff = (Date.now() - d.getTime()) / 86400000;
+      return diff <= 7;
+    });
+    var body = '';
+    if (c.type === 'counter') {
+      var total = entries.reduce(function(s, e) { return s + (parseInt(e.valueNum, 10) || 0); }, 0);
+      body = '<div class=\"cc-counter__today\">今日：<strong>' + total + '</strong></div>'
+        + '<div class=\"cc-counter__week\">近7天：' + last7.reduce(function(s, e) { return s + (parseInt(e.valueNum, 10) || 0); }, 0) + '</div>'
+        + '<div class=\"cc-counter__actions\">'
+        + '<button type=\"button\" class=\"cc-plus\" data-cc-inc=\"' + c.id + '\" data-cc-delta=\"1\" aria-label=\"+1\">+1</button>'
+        + '<button type=\"button\" class=\"cc-plus cc-plus--alt\" data-cc-inc=\"' + c.id + '\" data-cc-delta=\"-1\" aria-label=\"-1\">-1</button>'
+        + '</div>';
+    } else if (c.type === 'score') {
+      var last = entries[entries.length - 1];
+      var todayScore = last ? (last.valueNum != null ? last.valueNum : '—') : '—';
+      body = '<div class=\"cc-score__today\">今日：<strong>' + todayScore + '</strong></div>'
+        + '<div class=\"cc-counter__actions cc-score__scale\">'
+        + [1,2,3,4,5,6,7,8,9,10].map(function(n) {
+            return '<button type=\"button\" class=\"cc-score-num\" data-cc-score=\"' + c.id + '\" data-cc-num=\"' + n + '\">' + n + '</button>';
+          }).join('')
+        + '</div>';
+    } else { // text
+      var lastText = entries[entries.length - 1];
+      body = '<div class=\"cc-text__last\">' + (lastText ? (escapeHtml((lastText.text || '').slice(0, 40)) + ((lastText.text || '').length > 40 ? '…' : '')) : '<span class=\"muted-tiny\">还没有记录</span>') + '</div>'
+        + '<div class=\"cc-counter__actions\"><button type=\"button\" class=\"btn btn--primary btn--small\" data-cc-write=\"' + c.id + '\">写一笔</button></div>';
+    }
+    return '<div class=\"cc-card cc-card--' + c.type + '\">'
+      + '<div class=\"cc-card__head\"><span class=\"cc-card__name\">' + escapeHtml(c.name) + '</span><button type=\"button\" class=\"cc-card__del\" data-cc-del=\"' + c.id + '\" aria-label=\"删卡\">×</button></div>'
+      + body
+      + '</div>';
+  }).join('');
+}
+
+function customCardIncrement(cardId, delta) {
+  var entries = loadCustomEntries();
+  entries.push({
+    id: uuid(),
+    cardId: cardId,
+    date: todayKey(),
+    time: String(new Date().getHours()).padStart(2, '0') + ':' + String(new Date().getMinutes()).padStart(2, '0'),
+    valueNum: delta,
+    text: '',
+    kind: 'custom'
+  });
+  saveCustomEntries(entries);
+  renderCustomPanel();
+}
+
+function customCardScore(cardId, n) {
+  var entries = loadCustomEntries();
+  entries.push({
+    id: uuid(),
+    cardId: cardId,
+    date: todayKey(),
+    time: String(new Date().getHours()).padStart(2, '0') + ':' + String(new Date().getMinutes()).padStart(2, '0'),
+    valueNum: n,
+    text: '',
+    kind: 'custom'
+  });
+  saveCustomEntries(entries);
+  renderCustomPanel();
+  showToast('打了 ' + n + ' 分', 'success');
+}
+
+function openCustomTextModal(cardId) {
+  var cards = loadCustomCards();
+  var card = cards.find(function(c) { return c.id === cardId; });
+  if (!card) return;
+  var modal = document.getElementById('custom-text-modal');
+  if (!modal) return;
+  document.getElementById('ct-card-id').value = cardId;
+  document.getElementById('ct-modal-title').textContent = card.name;
+  document.getElementById('ct-field-label').textContent = '在「' + card.name + '」里写一笔';
+  document.getElementById('ct-text').value = '';
+  openModal(modal);
+  setTimeout(function() { document.getElementById('ct-text').focus(); }, 200);
+}
+
+function submitCustomText(e) {
+  if (e) e.preventDefault();
+  var cardId = document.getElementById('ct-card-id').value;
+  var text = (document.getElementById('ct-text').value || '').trim();
+  if (!text) {
+    document.getElementById('ct-text').classList.add('field__input--error');
+    setTimeout(function() { document.getElementById('ct-text').classList.remove('field__input--error'); }, 1200);
+    return;
+  }
+  var entries = loadCustomEntries();
+  entries.push({
+    id: uuid(),
+    cardId: cardId,
+    date: todayKey(),
+    time: String(new Date().getHours()).padStart(2, '0') + ':' + String(new Date().getMinutes()).padStart(2, '0'),
+    valueNum: null,
+    text: text,
+    kind: 'custom'
+  });
+  saveCustomEntries(entries);
+  document.getElementById('custom-text-modal').hidden = true;
+  renderCustomPanel();
+  showToast('记下了', 'success');
+}
+
+function openCustomCardModal() {
+  var modal = document.getElementById('custom-card-modal');
+  if (!modal) return;
+  document.getElementById('cc-name').value = '';
+  document.getElementById('cc-type').value = 'counter';
+  document.getElementById('cc-name-error').textContent = '';
+  openModal(modal);
+  setTimeout(function() { document.getElementById('cc-name').focus(); }, 200);
+}
+
+function submitCustomCard(e) {
+  if (e) e.preventDefault();
+  var name = (document.getElementById('cc-name').value || '').trim();
+  var type = document.getElementById('cc-type').value;
+  var errEl = document.getElementById('cc-name-error');
+  if (!name) {
+    errEl.textContent = '给它起个名字吧，不然记了都不知道是谁';
+    document.getElementById('cc-name').classList.add('field__input--error');
+    setTimeout(function() { document.getElementById('cc-name').classList.remove('field__input--error'); }, 1500);
+    return;
+  }
+  var cards = loadCustomCards();
+  cards.push({
+    id: uuid(),
+    name: name,
+    type: type,
+    createdAt: new Date().toISOString()
+  });
+  saveCustomCards(cards);
+  document.getElementById('custom-card-modal').hidden = true;
+  renderCustomPanel();
+  showToast('卡片「' + name + '」已开', 'success');
+}
+
+function deleteCustomCard(cardId) {
+  var card = loadCustomCards().find(function(c) { return c.id === cardId; });
+  if (!card) return;
+  confirmDelete('删掉「' + card.name + '」卡片？', '卡里的历史记录会一直躺在你的数据里，不会被删', function() {
+    var cards = loadCustomCards().filter(function(c) { return c.id !== cardId; });
+    saveCustomCards(cards);
+    renderCustomPanel();
+    showToast('卡片删了', 'info');
+  });
+}
+
+// ---- 记梦 ----
+function openDreamModal() {
+  var modal = document.getElementById('dream-modal');
+  if (!modal) return;
+  document.getElementById('dream-text').value = '';
+  openModal(modal);
+  setTimeout(function() { document.getElementById('dream-text').focus(); }, 200);
+}
+
+function submitDream(e) {
+  if (e) e.preventDefault();
+  var text = (document.getElementById('dream-text').value || '').trim();
+  if (!text) {
+    document.getElementById('dream-text').classList.add('field__input--error');
+    setTimeout(function() { document.getElementById('dream-text').classList.remove('field__input--error'); }, 1500);
+    return;
+  }
+  var entries = loadCustomEntries();
+  entries.push({
+    id: uuid(),
+    cardId: 'dream',
+    date: todayKey(),
+    time: String(new Date().getHours()).padStart(2, '0') + ':' + String(new Date().getMinutes()).padStart(2, '0'),
+    valueNum: null,
+    text: text,
+    kind: 'dream'
+  });
+  saveCustomEntries(entries);
+  document.getElementById('dream-modal').hidden = true;
+  renderSleepPanel();
+  showToast('梦记下了', 'success');
+}
+
+// ---- ＋ 抽屉联通 ----
+function routeQuickAction(quickKey) {
+  switch (quickKey) {
+    case 'schedule':
+      openScheduleModal(null);
+      return true;
+    case 'sleep':
+      // 切到首页 + 滑到右上睡眠屏
+      var sleepPanel = document.querySelector('[data-quad=\"sleep\"]');
+      if (sleepPanel) {
+        var swipe = sleepPanel.querySelector('.quad-swipe');
+        if (swipe) swipe.scrollLeft = 0;
+      }
+      showToast('好，填一下昨晚的', 'info');
+      return true;
+    case 'note':
+      // 找一张文字型卡片，没有就引导开卡
+      var textCard = loadCustomCards().find(function(c) { return c.type === 'text'; });
+      if (textCard) {
+        openCustomTextModal(textCard.id);
+      } else {
+        showToast('先在「自定义」开一张「文字」型卡片，再来这里写', 'info');
+        openCustomCardModal();
+      }
+      return true;
+    case 'custom':
+      openCustomManage();
+      return true;
+    case 'money':
+      showToast('记账还在 Sprint 4 到岗，先用这个提醒自己', 'warning');
+      return false;
+  }
+  return false;
+}
+
+function openCustomManage() {
+  var modal = document.getElementById('custom-manage-modal');
+  if (!modal) return;
+  var list = document.getElementById('cc-manage-list');
+  if (list) {
+    var cards = loadCustomCards();
+    if (cards.length === 0) {
+      list.innerHTML = '<p class=\"muted-tiny\">还没有卡片</p>';
+    } else {
+      list.innerHTML = cards.map(function(c) {
+        var entries = customEntriesAll(c.id);
+        return '<div class=\"cc-manage__row\">'
+          + '<span class=\"cc-manage__name\">' + escapeHtml(c.name) + '</span>'
+          + '<span class=\"cc-manage__type\">' + (c.type === 'counter' ? '计数' : c.type === 'score' ? '打分' : '文字') + '</span>'
+          + '<span class=\"cc-manage__count\">' + entries.length + ' 条</span>'
+          + '<button type=\"button\" class=\"icon-btn\" data-cc-del-mng=\"' + c.id + '\" aria-label=\"删\">×</button>'
+          + '</div>';
+      }).join('');
+    }
+  }
+  openModal(modal);
+}
+
+// ---- init 扩展 ----
+function initSprint3() {
+  renderSleepPanel();
+  renderDietPanel();
+  renderCustomPanel();
+
+  // 睡眠表单提交
+  var sleepForm = document.getElementById('sleep-form');
+  if (sleepForm) sleepForm.addEventListener('submit', saveSleepFromForm);
+
+  // 记梦
+  var dreamBtn = document.getElementById('sleep-dream-btn');
+  if (dreamBtn) dreamBtn.addEventListener('click', openDreamModal);
+  var dreamForm = document.getElementById('dream-form');
+  if (dreamForm) dreamForm.addEventListener('submit', submitDream);
+
+  // 饮食三餐
+  ['breakfast','lunch','dinner','snack'].forEach(function(m) {
+    var btn = document.getElementById('diet-add-' + m);
+    if (btn) btn.addEventListener('click', function() { addDietEntry(m); });
+    var input = document.getElementById('diet-input-' + m);
+    if (input) input.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') { e.preventDefault(); addDietEntry(m); }
+    });
+  });
+
+  // 自定义卡片：新建 / 删除 / 计数 / 打分 / 写
+  var ccNewBtn = document.getElementById('cc-new-btn');
+  if (ccNewBtn) ccNewBtn.addEventListener('click', openCustomCardModal);
+  var ccForm = document.getElementById('custom-card-form');
+  if (ccForm) ccForm.addEventListener('submit', submitCustomCard);
+  var ctForm = document.getElementById('custom-text-form');
+  if (ctForm) ctForm.addEventListener('submit', submitCustomText);
+
+  // 预设芯片
+  document.querySelectorAll('.preset-chip').forEach(function(chip) {
+    chip.addEventListener('click', function() {
+      var n = chip.dataset.preset || '';
+      var nameEl = document.getElementById('cc-name');
+      if (nameEl) nameEl.value = n;
+      if (n.indexOf('打分') >= 0) document.getElementById('cc-type').value = 'score';
+      else if (n.indexOf('计数') >= 0) document.getElementById('cc-type').value = 'counter';
+      else if (n.indexOf('文字') >= 0) document.getElementById('cc-type').value = 'text';
+    });
+  });
+
+  // 卡片管理弹窗的「再开一张」
+  var ccManageAdd = document.getElementById('cc-manage-add');
+  if (ccManageAdd) ccManageAdd.addEventListener('click', function() {
+    document.getElementById('custom-manage-modal').hidden = true;
+    openCustomCardModal();
   });
 }
 
@@ -8363,6 +8982,7 @@ function init() {
     // 但仍需绑定导航等基础交互
     bindBasicInteractions();
     initDashboard();
+    initSprint3();
     return;
   }
 
@@ -8371,6 +8991,7 @@ function init() {
   checkReminders();
   bindBasicInteractions();
   initDashboard();
+  initSprint3();
 }
 
 function bindBasicInteractions() {
