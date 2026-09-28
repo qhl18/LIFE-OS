@@ -215,6 +215,8 @@
                 </div>
                 <div class="sleep-dreams" id="sleep-dreams-list" aria-label="今日梦的"></div>
               </form>
+              <!-- Sprint 4：近 7 天睡眠时长曲线（JS 渲染） -->
+              <div class="sleep-trend" id="sleep-trend-chart" aria-label="近7天睡眠时长"></div>
             </div>
             <div class="quad-slide" id="diet-slide-main">
               <div class="diet-meal" data-meal="breakfast">
@@ -279,21 +281,25 @@
           </div>
         </section>
 
-        <!-- 右下：存款 -->
+        <!-- 右下：存款（Sprint 4：记一笔 + 余额 + 分类趋势 + 默认上锁） -->
         <section class="quad-panel quad-panel--static" data-quad="finance" aria-label="存款">
           <div class="quad-panel__head">
             <h2 class="quad-panel__title">存款</h2>
-            <span class="quad-panel__lock" aria-hidden="true" title="此看板可单独加锁">
+            <button class="quad-panel__manage" id="fin-add-btn" type="button" aria-label="记一笔">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                <path d="M12 5v14M5 12h14" stroke-linecap="round"/>
+              </svg>
+            </button>
+            <button class="quad-panel__manage" id="fin-relock-btn" type="button" aria-label="重新上锁" title="重新上锁" hidden>
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                 <rect x="5" y="11" width="14" height="9" rx="2"/>
                 <path d="M8 11V7a4 4 0 018 0v4"/>
               </svg>
-            </span>
+            </button>
           </div>
           <div class="quad-swipe">
-            <div class="quad-slide">
-              <p class="quad-slide__hint">记账的柜台还没开门。开门那天，<strong>每一笔钱都知道自己去了哪</strong>。</p>
-              <span class="quad-slide__tag">Sprint 4 开门</span>
+            <div class="quad-slide" id="fin-slide-main">
+              <!-- 存款看板（JS 渲染：锁蒙层 或 余额+本月+分类+今日账目） -->
             </div>
           </div>
         </section>
@@ -1426,6 +1432,93 @@
       </div>
     </div>
 
+    <!-- Sprint 4：记一笔弹窗 -->
+    <div class="modal" id="finance-modal" hidden>
+      <div class="modal__overlay" data-close-modal></div>
+      <div class="modal__panel">
+        <div class="modal__title-row">
+          <h2 class="modal__title">记一笔</h2>
+        </div>
+        <p class="decompose-hint">手动记，钱的事只经过你的手</p>
+        <form id="finance-form" class="modal__form" novalidate>
+          <div class="fin-type-toggle" role="radiogroup" aria-label="收入或支出">
+            <button type="button" class="fin-type-toggle__btn fin-type-toggle__btn--expense is-active" data-fin-type="expense">支出</button>
+            <button type="button" class="fin-type-toggle__btn fin-type-toggle__btn--income" data-fin-type="income">收入</button>
+          </div>
+          <input type="hidden" id="fin-type" value="expense">
+          <label class="field">
+            <span class="field__label">金额（元）</span>
+            <input type="number" id="fin-amount" class="field__input" min="0.01" step="0.01" placeholder="0.00" required>
+            <span class="field__error" id="fin-amount-error"></span>
+          </label>
+          <div class="field">
+            <span class="field__label">分类</span>
+            <div class="fin-cat-chips" id="fin-cat-chips">
+              <button type="button" class="fin-chip is-active" data-cat="餐饮">餐饮</button>
+              <button type="button" class="fin-chip" data-cat="交通">交通</button>
+              <button type="button" class="fin-chip" data-cat="购物">购物</button>
+              <button type="button" class="fin-chip" data-cat="娱乐">娱乐</button>
+              <button type="button" class="fin-chip" data-cat="居住">居住</button>
+              <button type="button" class="fin-chip" data-cat="学习">学习</button>
+              <button type="button" class="fin-chip" data-cat="医疗">医疗</button>
+              <button type="button" class="fin-chip" data-cat="其他">其他</button>
+            </div>
+            <div class="fin-cat-chips fin-cat-chips--income" id="fin-cat-chips-income" hidden>
+              <button type="button" class="fin-chip is-active" data-cat="工资">工资</button>
+              <button type="button" class="fin-chip" data-cat="兼职">兼职</button>
+              <button type="button" class="fin-chip" data-cat="红包">红包</button>
+              <button type="button" class="fin-chip" data-cat="其他">其他</button>
+            </div>
+            <input type="hidden" id="fin-category" value="餐饮">
+          </div>
+          <label class="field">
+            <span class="field__label">备注（可选）</span>
+            <input type="text" id="fin-note" class="field__input" placeholder="给这笔钱留句话" maxlength="40">
+          </label>
+          <label class="field field--inline" id="fin-timeline-field" hidden>
+            <input type="checkbox" id="fin-timeline" checked>
+            <span class="field__label-inline">这笔挺大 · 同时记进人生时间线</span>
+          </label>
+          <div class="modal__actions">
+            <button type="button" class="btn btn--ghost" data-close-modal>取消</button>
+            <button type="submit" class="btn btn--primary" id="fin-submit">记下了</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Sprint 4：存款看板解锁弹窗（首次=设 PIN，之后=解锁） -->
+    <div class="modal" id="fin-unlock-modal" hidden>
+      <div class="modal__overlay" data-close-modal></div>
+      <div class="modal__panel modal__panel--small">
+        <div class="modal__title-row">
+          <h2 class="modal__title" id="fin-unlock-title">解锁存款看板</h2>
+        </div>
+        <p class="decompose-hint" id="fin-unlock-hint">这个看板默认上锁。输 4 位 PIN 看余额和账目。</p>
+        <div class="pin-display" id="fin-unlock-display" aria-label="PIN 输入">
+          <span class="pin-dot"></span><span class="pin-dot"></span><span class="pin-dot"></span><span class="pin-dot"></span>
+        </div>
+        <div class="pin-keypad">
+          <button type="button" class="fin-pin-key pin-key" data-pin="1">1</button>
+          <button type="button" class="fin-pin-key pin-key" data-pin="2">2</button>
+          <button type="button" class="fin-pin-key pin-key" data-pin="3">3</button>
+          <button type="button" class="fin-pin-key pin-key" data-pin="4">4</button>
+          <button type="button" class="fin-pin-key pin-key" data-pin="5">5</button>
+          <button type="button" class="fin-pin-key pin-key" data-pin="6">6</button>
+          <button type="button" class="fin-pin-key pin-key" data-pin="7">7</button>
+          <button type="button" class="fin-pin-key pin-key" data-pin="8">8</button>
+          <button type="button" class="fin-pin-key pin-key" data-pin="9">9</button>
+          <button type="button" class="pin-key pin-key--empty" tabindex="-1" aria-hidden="true"></button>
+          <button type="button" class="fin-pin-key pin-key" data-pin="0">0</button>
+          <button type="button" class="fin-pin-key pin-key pin-key--del" data-pin="del" aria-label="删除一位">⌫</button>
+        </div>
+        <span class="field__error" id="fin-unlock-error"></span>
+        <div class="modal__actions modal__actions--center">
+          <button type="button" class="btn btn--ghost" data-close-modal>取消</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Sprint 3：记梦弹窗 -->
     <div class="modal" id="dream-modal" hidden>
       <div class="modal__overlay" data-close-modal></div>
@@ -1442,6 +1535,28 @@
           <div class="modal__actions">
             <button type="button" class="btn btn--ghost" data-close-modal>取消</button>
             <button type="submit" class="btn btn--primary" id="dream-submit">记下这个梦</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Sprint 4：周期卡 · 记开始日 -->
+    <div class="modal" id="cycle-modal" hidden>
+      <div class="modal__overlay" data-close-modal></div>
+      <div class="modal__panel modal__panel--small">
+        <div class="modal__title-row">
+          <h2 class="modal__title" id="cycle-title">记开始日</h2>
+        </div>
+        <p class="decompose-hint">只记开始的日子，中间不用管——规律它自己会算出来</p>
+        <form id="cycle-form" class="modal__form" novalidate>
+          <input type="hidden" id="cycle-card-id" value="">
+          <label class="field">
+            <span class="field__label">这次是哪天开始的</span>
+            <input type="date" id="cycle-date" class="field__input" required>
+          </label>
+          <div class="modal__actions">
+            <button type="button" class="btn btn--ghost" data-close-modal>取消</button>
+            <button type="submit" class="btn btn--primary" id="cycle-submit">记下了</button>
           </div>
         </form>
       </div>
@@ -1467,9 +1582,42 @@
               <option value="counter">计数 · 点一下 +1，适合频率</option>
               <option value="score">打分 · 1-10 分，适合感受</option>
               <option value="text">文字 · 写一段话，适合灵感</option>
+              <option value="numeric">数值 · 适合体重、存款、小说字数</option>
+              <option value="cycle">周期 · 记开始日，自动算规律和下次</option>
             </select>
-            <span class="field__hint">数值型（体重、存款这类）Sprint 4 就位</span>
           </label>
+          <label class="field" id="cc-unit-field" hidden>
+            <span class="field__label">单位（数值型才填）</span>
+            <input type="text" id="cc-unit" class="field__input" placeholder="kg / 元 / 字 / 次" maxlength="6">
+          </label>
+          <label class="field" id="cc-goal-field">
+            <span class="field__label">挂钩目标（可选 · 计数型专用）</span>
+            <select id="cc-goal" class="field__input">
+              <option value="">不挂，就单纯记个次数</option>
+            </select>
+          </label>
+          <label class="field" id="cc-goal-dir-field" hidden>
+            <span class="field__label">怎么算进目标</span>
+            <select id="cc-goal-dir" class="field__input">
+              <option value="plus">正向 · 卡片 +1，目标进度 +1</option>
+              <option value="minus">反向 · 卡片 +1，目标进度 -1（自律类用它）</option>
+            </select>
+          </label>
+          <label class="field field--inline">
+            <input type="checkbox" id="cc-locked">
+            <span class="field__label-inline">这张卡加锁 · 4 位 PIN</span>
+          </label>
+          <div class="field-group" id="cc-pin-field" hidden>
+            <label class="field">
+              <span class="field__label">设个 PIN（4 位数字）</span>
+              <input type="password" id="cc-pin" class="field__input" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" placeholder="4 位数字">
+            </label>
+            <label class="field">
+              <span class="field__label">再输一次</span>
+              <input type="password" id="cc-pin2" class="field__input" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" placeholder="再输一次">
+            </label>
+            <span class="field__error" id="cc-pin-error"></span>
+          </div>
           <div class="cc-presets" id="cc-presets">
             <span class="cc-presets__label">手边常用的：</span>
             <button type="button" class="preset-chip" data-preset="情绪打分">情绪（打分）</button>
@@ -1479,6 +1627,63 @@
           <div class="modal__actions">
             <button type="button" class="btn btn--ghost" data-close-modal>取消</button>
             <button type="submit" class="btn btn--primary" id="cc-submit">开卡</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Sprint 4a：单卡解锁弹窗 -->
+    <div class="modal" id="cc-unlock-modal" hidden>
+      <div class="modal__overlay" data-close-modal></div>
+      <div class="modal__panel modal__panel--small">
+        <div class="modal__title-row">
+          <h2 class="modal__title" id="cc-unlock-title">解锁</h2>
+        </div>
+        <p class="decompose-hint">这张卡加了锁。输 4 位 PIN 看里面的东西。</p>
+        <div class="pin-display" id="cc-unlock-display" aria-label="PIN 输入">
+          <span class="pin-dot"></span><span class="pin-dot"></span><span class="pin-dot"></span><span class="pin-dot"></span>
+        </div>
+        <div class="pin-keypad">
+          <button type="button" class="pin-key" data-pin="1">1</button>
+          <button type="button" class="pin-key" data-pin="2">2</button>
+          <button type="button" class="pin-key" data-pin="3">3</button>
+          <button type="button" class="pin-key" data-pin="4">4</button>
+          <button type="button" class="pin-key" data-pin="5">5</button>
+          <button type="button" class="pin-key" data-pin="6">6</button>
+          <button type="button" class="pin-key" data-pin="7">7</button>
+          <button type="button" class="pin-key" data-pin="8">8</button>
+          <button type="button" class="pin-key" data-pin="9">9</button>
+          <button type="button" class="pin-key pin-key--empty" tabindex="-1" aria-hidden="true"></button>
+          <button type="button" class="pin-key" data-pin="0">0</button>
+          <button type="button" class="pin-key pin-key--del" data-pin="del" aria-label="删除一位">⌫</button>
+        </div>
+        <span class="field__error" id="cc-unlock-error"></span>
+        <div class="modal__actions modal__actions--center">
+          <button type="button" class="btn btn--ghost" data-close-modal>取消</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sprint 4a：数值型卡片输入弹窗 -->
+    <div class="modal" id="cc-numeric-modal" hidden>
+      <div class="modal__overlay" data-close-modal></div>
+      <div class="modal__panel">
+        <div class="modal__title-row">
+          <h2 class="modal__title" id="cc-num-title">记一笔数值</h2>
+        </div>
+        <form id="cc-numeric-form" class="modal__form" novalidate>
+          <input type="hidden" id="cc-num-card-id">
+          <label class="field">
+            <span class="field__label">数值（<span id="cc-num-unit">单位</span>）</span>
+            <input type="number" step="0.01" id="cc-num-value" class="field__input" placeholder="例如：65.5" required>
+          </label>
+          <label class="field">
+            <span class="field__label">备注（选填）</span>
+            <input type="text" id="cc-num-note" class="field__input" maxlength="40" placeholder="这一刻在想什么">
+          </label>
+          <div class="modal__actions">
+            <button type="button" class="btn btn--ghost" data-close-modal>取消</button>
+            <button type="submit" class="btn btn--primary">记下</button>
           </div>
         </form>
       </div>

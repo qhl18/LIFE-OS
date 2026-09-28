@@ -8226,6 +8226,31 @@ function initDashboard() {
         openCustomCardModal();
         return;
       }
+      var unlockBtn = e.target.closest('[data-cc-unlock]');
+      if (unlockBtn) {
+        openUnlockModal(unlockBtn.dataset.ccUnlock);
+        return;
+      }
+      var relockBtn = e.target.closest('[data-cc-relock]');
+      if (relockBtn) {
+        relockCustomCard(relockBtn.dataset.ccRelock);
+        return;
+      }
+      var numBtn = e.target.closest('[data-cc-num]');
+      if (numBtn) {
+        openNumericInputModal(numBtn.dataset.ccNum);
+        return;
+      }
+      var numHistBtn = e.target.closest('[data-cc-num-history]');
+      if (numHistBtn) {
+        openNumericHistoryModal(numHistBtn.dataset.ccNumHistory);
+        return;
+      }
+      var cycleBtn = e.target.closest('[data-cc-cycle]');
+      if (cycleBtn) {
+        openCycleModal(cycleBtn.dataset.ccCycle);
+        return;
+      }
     });
   }
 
@@ -8244,6 +8269,10 @@ function initDashboard() {
     ccManageList.addEventListener('click', function(e) {
       var delBtn = e.target.closest('[data-cc-del-mng]');
       if (delBtn) { deleteCustomCard(delBtn.dataset.ccDelMng); return; }
+      var upBtn = e.target.closest('[data-cc-up]');
+      if (upBtn) { moveCustomCard(upBtn.dataset.ccUp, -1); return; }
+      var downBtn = e.target.closest('[data-cc-down]');
+      if (downBtn) { moveCustomCard(downBtn.dataset.ccDown, 1); return; }
     });
   }
   var ccManageHeadBtn = document.getElementById('cc-manage-btn');
@@ -8387,6 +8416,36 @@ var STORAGE_SLEEP = 'lifeos_sleep';
 var STORAGE_DIET = 'lifeos_diet';
 var STORAGE_CUSTOM_CARDS = 'lifeos_custom_cards';
 var STORAGE_CUSTOM_ENTRIES = 'lifeos_custom_entries';
+// 临时编码区，sessionStorage（关页面就锁回去），存已解锁的卡 id 列表
+var SESSION_UNLOCKED_CARDS = 'lifeos_unlocked_cards';
+
+// ---- PIN 简单混淆（防朋友窥屏，不是真加密） ----
+function simpleHashPin(pin) {
+  try { return btoa(String(pin).split('').reverse().join('') + '|lo'); }
+  catch(e) { return ''; }
+}
+function verifyPin(pin, hash) {
+  if (!hash) return false;
+  return simpleHashPin(pin) === hash;
+}
+
+// ---- 解锁态：sessionStorage ----
+function getUnlockedCards() {
+  try { return JSON.parse(sessionStorage.getItem(SESSION_UNLOCKED_CARDS) || '[]'); }
+  catch(e) { return []; }
+}
+function markCardUnlocked(cardId) {
+  var list = getUnlockedCards();
+  if (list.indexOf(cardId) === -1) list.push(cardId);
+  try { sessionStorage.setItem(SESSION_UNLOCKED_CARDS, JSON.stringify(list)); } catch(e) {}
+}
+function lockCard(cardId) {
+  var list = getUnlockedCards().filter(function(id) { return id !== cardId; });
+  try { sessionStorage.setItem(SESSION_UNLOCKED_CARDS, JSON.stringify(list)); } catch(e) {}
+}
+function isCardUnlocked(cardId) {
+  return getUnlockedCards().indexOf(cardId) >= 0;
+}
 
 // ---- 数据层 ----
 function loadSleep() { return loadJSON(STORAGE_SLEEP, []); }
@@ -8523,13 +8582,16 @@ function renderSleepPanel() {
       allDreams = [{ text: rec.dreamText, time: '昨夜', isOld: true }].concat(allDreams);
     }
     if (allDreams.length === 0) {
-      dreamsList.innerHTML = '<p class=\"muted-tiny\">还没有梦的记录，点右上「记个梦」</p>';
+      dreamsList.innerHTML = '<p class="muted-tiny">还没有梦的记录，点右上「记个梦」</p>';
     } else {
       dreamsList.innerHTML = allDreams.map(function(d) {
-        return '<div class=\"dream-row\"><span class=\"dream-row__time\">' + escapeHtml(d.time || '') + '</span><span class=\"dream-row__text\">' + escapeHtml(d.text || '') + '</span></div>';
+        return '<div class="dream-row"><span class="dream-row__time">' + escapeHtml(d.time || '') + '</span><span class="dream-row__text">' + escapeHtml(d.text || '') + '</span></div>';
       }).join('');
     }
   }
+
+  // Sprint 4：近 7 天睡眠趋势曲线
+  renderSleepTrend();
 }
 
 function saveSleepFromForm(e) {
@@ -8651,6 +8713,18 @@ function renderCustomPanel() {
   }
   var today = todayKey();
   panel.innerHTML = cards.map(function(c) {
+    // 锁着的卡 + 未解锁 → 显示蒙层（不渲染任何数据）
+    if (c.locked && !isCardUnlocked(c.id)) {
+      return '<div class="cc-card cc-card--locked" data-card-id="' + c.id + '">'
+        + '<div class="cc-card__lock-cover">'
+        + '<div class="cc-card__lock-icon" aria-hidden="true">'
+        + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg>'
+        + '</div>'
+        + '<div class="cc-card__lock-name">「' + escapeHtml(c.name) + '」</div>'
+        + '<button type="button" class="btn btn--primary btn--small" data-cc-unlock="' + c.id + '">点此解锁</button>'
+        + '</div>'
+        + '</div>';
+    }
     var entries = customEntriesForCard(c.id, today);
     var last7 = customEntriesAll(c.id).filter(function(e) {
       var d = new Date(e.date);
@@ -8675,16 +8749,107 @@ function renderCustomPanel() {
             return '<button type=\"button\" class=\"cc-score-num\" data-cc-score=\"' + c.id + '\" data-cc-num=\"' + n + '\">' + n + '</button>';
           }).join('')
         + '</div>';
+    } else if (c.type === 'numeric') {
+      // 数值型：当前值 + 单位 + 30天 sparkline + 输入按钮
+      var allNumeric = customEntriesAll(c.id);
+      var lastEntry = allNumeric[allNumeric.length - 1];
+      var currentVal = lastEntry ? lastEntry.valueNum : null;
+      var unit = c.unit || '';
+      body = '<div class="cc-numeric__today">当前：<strong>' + (currentVal != null ? currentVal : '—') + '</strong>'
+        + (unit ? '<span class="cc-numeric__unit">' + escapeHtml(unit) + '</span>' : '') + '</div>'
+        + renderNumericSparkline(allNumeric)
+        + '<div class="cc-counter__actions">'
+        + '<button type="button" class="cc-plus" data-cc-num="' + c.id + '">记一笔</button>'
+        + '<button type="button" class="cc-plus cc-plus--alt" data-cc-num-history="' + c.id + '">历史</button>'
+        + '</div>';
+    } else if (c.type === 'cycle') {
+      // 周期卡：从 kind='cycle' 的条目算规律
+      var starts = customEntriesAll(c.id).filter(function(e) {
+        return e.kind === 'cycle' && e.date;
+      }).map(function(e) { return e.date; }).sort();
+      if (starts.length === 0) {
+        body = '<div class="cc-cycle__hint muted-tiny">还没记过开始日</div>'
+          + '<div class="cc-counter__actions">'
+          + '<button type="button" class="cc-plus" data-cc-cycle="' + c.id + '">记开始日</button>'
+          + '</div>';
+      } else {
+        var info = computeCycleInfo(starts);
+        var statLine = '';
+        if (starts.length >= 2 && info.avg) {
+          statLine += '<div class="cc-cycle__stat">平均周期 <strong>' + info.avg + '</strong> 天 · 已记 ' + starts.length + ' 次</div>';
+        } else {
+          statLine += '<div class="cc-cycle__stat">已记 ' + starts.length + ' 次 · 再记一次就能算规律</div>';
+        }
+        statLine += '<div class="cc-cycle__now">' + info.nowText + '</div>';
+        if (info.nextText) statLine += '<div class="cc-cycle__next">' + info.nextText + '</div>';
+        body = statLine
+          + '<div class="cc-counter__actions">'
+          + '<button type="button" class="cc-plus" data-cc-cycle="' + c.id + '">记开始日</button>'
+          + '</div>';
+      }
     } else { // text
       var lastText = entries[entries.length - 1];
       body = '<div class=\"cc-text__last\">' + (lastText ? (escapeHtml((lastText.text || '').slice(0, 40)) + ((lastText.text || '').length > 40 ? '…' : '')) : '<span class=\"muted-tiny\">还没有记录</span>') + '</div>'
         + '<div class=\"cc-counter__actions\"><button type=\"button\" class=\"btn btn--primary btn--small\" data-cc-write=\"' + c.id + '\">写一笔</button></div>';
     }
-    return '<div class=\"cc-card cc-card--' + c.type + '\">'
-      + '<div class=\"cc-card__head\"><span class=\"cc-card__name\">' + escapeHtml(c.name) + '</span><button type=\"button\" class=\"cc-card__del\" data-cc-del=\"' + c.id + '\" aria-label=\"删卡\">×</button></div>'
+    // Sprint 4：挂目标的卡，显示目标进度
+    var goalLine = '';
+    if (c.goalId) {
+      var hookGoal = loadGoals().find(function(g) { return g.id === c.goalId; });
+      if (hookGoal && !hookGoal.completed) {
+        goalLine = '<div class="cc-card__goal">⇣ ' + escapeHtml(hookGoal.name)
+          + ' · ' + (hookGoal.currentValue || 0) + '/' + (hookGoal.target || '∞')
+          + (c.goalDir === 'minus' ? '<span class="cc-card__goal-dir" title="反向：卡片+1，目标进度-1">反</span>' : '')
+          + '</div>';
+      }
+    }
+    var lockDot = c.locked ? '<span class=\"cc-card__lock-dot\" title=\"已上锁\">●</span>' : '';
+    var relockBtn = c.locked ? '<button type=\"button\" class=\"cc-card__relock\" data-cc-relock=\"' + c.id + '\" title=\"重新上锁\" aria-label=\"重新上锁\">'
+      + '<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\"><rect x=\"5\" y=\"11\" width=\"14\" height=\"9\" rx=\"2\"/><path d=\"M8 11V7a4 4 0 018 0v4\"/></svg></button>' : '';
+    return '<div class=\"cc-card cc-card--' + c.type + '\" data-card-id=\"' + c.id + '\">'
+      + '<div class=\"cc-card__head\"><span class=\"cc-card__name\">' + lockDot + escapeHtml(c.name) + '</span>'
+      + '<span class=\"cc-card__actions\">' + relockBtn
+      + '<button type=\"button\" class=\"cc-card__del\" data-cc-del=\"' + c.id + '\" aria-label=\"删卡\">×</button>'
+      + '</span></div>'
       + body
+      + goalLine
       + '</div>';
   }).join('');
+}
+
+// 数值型卡 · 30天 sparkline（原生 SVG 折线图）
+function renderNumericSparkline(allEntries) {
+  if (!allEntries || allEntries.length === 0) {
+    return '<div class=\"cc-sparkline cc-sparkline--empty\">还没有数据</div>';
+  }
+  var byDate = {};
+  allEntries.forEach(function(e) {
+    if (e.date && e.valueNum != null) byDate[e.date] = e.valueNum;
+  });
+  var dates = Object.keys(byDate).sort();
+  dates = dates.slice(-30);
+  if (dates.length < 2) {
+    return '<div class=\"cc-sparkline cc-sparkline--empty\">再记一笔就能看见曲线了</div>';
+  }
+  var values = dates.map(function(d) { return byDate[d]; });
+  var vMin = Math.min.apply(null, values);
+  var vMax = Math.max.apply(null, values);
+  var range = vMax - vMin || 1;
+  var w = 240, h = 40, pad = 4;
+  var pts = dates.map(function(d, i) {
+    var x = pad + (i / (dates.length - 1)) * (w - 2 * pad);
+    var y = pad + (1 - (values[i] - vMin) / range) * (h - 2 * pad);
+    return x.toFixed(1) + ',' + y.toFixed(1);
+  }).join(' ');
+  var lastX = pad + (w - 2 * pad);
+  var lastY = pad + (1 - (values[values.length - 1] - vMin) / range) * (h - 2 * pad);
+  return '<div class=\"cc-sparkline\" aria-label=\"近30天趋势\">'
+    + '<svg viewBox=\"0 0 ' + w + ' ' + h + '\" preserveAspectRatio=\"none\" class=\"cc-sparkline__svg\">'
+    + '<polyline points=\"' + pts + '\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/>'
+    + '<circle cx=\"' + lastX.toFixed(1) + '\" cy=\"' + lastY.toFixed(1) + '\" r=\"2.5\" fill=\"currentColor\"/>'
+    + '</svg>'
+    + '<div class=\"cc-sparkline__range\">低 ' + vMin + ' · 高 ' + vMax + '</div>'
+    + '</div>';
 }
 
 function customCardIncrement(cardId, delta) {
@@ -8700,6 +8865,12 @@ function customCardIncrement(cardId, delta) {
   });
   saveCustomEntries(entries);
   renderCustomPanel();
+  // Sprint 4：挂了目标的卡，顺手把进度也走了
+  var card = loadCustomCards().find(function(c) { return c.id === cardId; });
+  if (card && card.goalId) {
+    var amount = card.goalDir === 'minus' ? -delta : delta;
+    if (amount !== 0) quickCheckin(card.goalId, amount, null);
+  }
 }
 
 function customCardScore(cardId, n) {
@@ -8763,6 +8934,20 @@ function openCustomCardModal() {
   document.getElementById('cc-name').value = '';
   document.getElementById('cc-type').value = 'counter';
   document.getElementById('cc-name-error').textContent = '';
+  // Sprint 4：填充可挂钩的目标（走量型、未完成的）
+  var goalSel = document.getElementById('cc-goal');
+  if (goalSel) {
+    var hookable = loadGoals().filter(function(g) {
+      return g.type !== 'milestone' && !g.completed && !g.paused;
+    });
+    goalSel.innerHTML = '<option value="">不挂，就单纯记个次数</option>'
+      + hookable.map(function(g) {
+          return '<option value="' + g.id + '">' + escapeHtml(g.name) + '（' + (g.currentValue || 0) + '/' + (g.target || '∞') + '）</option>';
+        }).join('');
+    goalSel.value = '';
+  }
+  var dirField = document.getElementById('cc-goal-dir-field');
+  if (dirField) dirField.hidden = true;
   openModal(modal);
   setTimeout(function() { document.getElementById('cc-name').focus(); }, 200);
 }
@@ -8778,17 +8963,50 @@ function submitCustomCard(e) {
     setTimeout(function() { document.getElementById('cc-name').classList.remove('field__input--error'); }, 1500);
     return;
   }
+  // 数值型：单位（选填）
+  var unit = type === 'numeric' ? (document.getElementById('cc-unit').value || '').trim() : '';
+  // 上锁：勾选 + 4 位 PIN 校验
+  var locked = document.getElementById('cc-locked').checked;
+  var pinHash = '';
+  var pinErr = document.getElementById('cc-pin-error');
+  pinErr.textContent = '';
+  if (locked) {
+    var pin1 = document.getElementById('cc-pin').value || '';
+    var pin2 = document.getElementById('cc-pin2').value || '';
+    if (!/^[0-9]{4}$/.test(pin1)) {
+      pinErr.textContent = 'PIN 要 4 位数字';
+      return;
+    }
+    if (pin1 !== pin2) {
+      pinErr.textContent = '两次输入不一样';
+      return;
+    }
+    pinHash = simpleHashPin(pin1);
+  }
   var cards = loadCustomCards();
+  // Sprint 4：挂目标（仅计数型） + 方向
+  var goalId = '';
+  var goalDir = 'plus';
+  if (type === 'counter') {
+    goalId = (document.getElementById('cc-goal') && document.getElementById('cc-goal').value) || '';
+    goalDir = (document.getElementById('cc-goal-dir') && document.getElementById('cc-goal-dir').value) || 'plus';
+    if (goalId && !loadGoals().some(function(g) { return g.id === goalId; })) goalId = '';
+  }
   cards.push({
     id: uuid(),
     name: name,
     type: type,
+    unit: unit,
+    locked: locked,
+    pinHash: pinHash,
+    goalId: goalId,
+    goalDir: goalId ? goalDir : '',
     createdAt: new Date().toISOString()
   });
   saveCustomCards(cards);
   document.getElementById('custom-card-modal').hidden = true;
   renderCustomPanel();
-  showToast('卡片「' + name + '」已开', 'success');
+  showToast('卡片「' + name + '」已开' + (locked ? '，记得 4 位 PIN' : '') + (goalId ? '，顺手挂上了目标' : ''), 'success');
 }
 
 function deleteCustomCard(cardId) {
@@ -8797,9 +9015,145 @@ function deleteCustomCard(cardId) {
   confirmDelete('删掉「' + card.name + '」卡片？', '卡里的历史记录会一直躺在你的数据里，不会被删', function() {
     var cards = loadCustomCards().filter(function(c) { return c.id !== cardId; });
     saveCustomCards(cards);
+    lockCard(cardId); // 清掉 sessionStorage 里的解锁态
     renderCustomPanel();
     showToast('卡片删了', 'info');
   });
+}
+
+// ---- 单卡解锁弹窗 ----
+var _ccUnlockCardId = null;
+var _ccUnlockPinBuf = '';
+
+function openUnlockModal(cardId) {
+  var card = loadCustomCards().find(function(c) { return c.id === cardId; });
+  if (!card) return;
+  _ccUnlockCardId = cardId;
+  _ccUnlockPinBuf = '';
+  document.getElementById('cc-unlock-title').textContent = '解锁「' + card.name + '」';
+  document.getElementById('cc-unlock-error').textContent = '';
+  paintPinDisplay();
+  openModal(document.getElementById('cc-unlock-modal'));
+}
+
+function paintPinDisplay() {
+  var dots = document.querySelectorAll('#cc-unlock-display .pin-dot');
+  dots.forEach(function(dot, i) {
+    if (i < _ccUnlockPinBuf.length) dot.classList.add('pin-dot--filled');
+    else dot.classList.remove('pin-dot--filled');
+  });
+}
+
+function pushPinDigit(d) {
+  if (_ccUnlockPinBuf.length >= 4) return;
+  if (!/^[0-9]$/.test(d)) return;
+  _ccUnlockPinBuf += d;
+  paintPinDisplay();
+  document.getElementById('cc-unlock-error').textContent = '';
+  if (_ccUnlockPinBuf.length === 4) {
+    // 立即校验
+    var card = loadCustomCards().find(function(c) { return c.id === _ccUnlockCardId; });
+    if (card && verifyPin(_ccUnlockPinBuf, card.pinHash)) {
+      markCardUnlocked(_ccUnlockCardId);
+      document.getElementById('cc-unlock-modal').hidden = true;
+      renderCustomPanel();
+      showToast('解锁了', 'success');
+    } else {
+      var errEl = document.getElementById('cc-unlock-error');
+      errEl.textContent = '不对，再试一次';
+      errEl.classList.add('field__error--shake');
+      setTimeout(function() { errEl.classList.remove('field__error--shake'); }, 600);
+      // 错后等一会儿再清空，让用户看到错误
+      setTimeout(function() { _ccUnlockPinBuf = ''; paintPinDisplay(); }, 600);
+    }
+  }
+}
+
+function popPinDigit() {
+  if (_ccUnlockPinBuf.length === 0) return;
+  _ccUnlockPinBuf = _ccUnlockPinBuf.slice(0, -1);
+  paintPinDisplay();
+  document.getElementById('cc-unlock-error').textContent = '';
+}
+
+// ---- 数值型卡片输入弹窗 ----
+function openNumericInputModal(cardId) {
+  var card = loadCustomCards().find(function(c) { return c.id === cardId; });
+  if (!card) return;
+  document.getElementById('cc-num-card-id').value = cardId;
+  document.getElementById('cc-num-title').textContent = '记一笔「' + card.name + '」';
+  document.getElementById('cc-num-unit').textContent = card.unit || '';
+  document.getElementById('cc-num-value').value = '';
+  document.getElementById('cc-num-note').value = '';
+  openModal(document.getElementById('cc-numeric-modal'));
+  setTimeout(function() { document.getElementById('cc-num-value').focus(); }, 200);
+}
+
+function submitNumericEntry(e) {
+  if (e) e.preventDefault();
+  var cardId = document.getElementById('cc-num-card-id').value;
+  var raw = (document.getElementById('cc-num-value').value || '').trim();
+  var note = (document.getElementById('cc-num-note').value || '').trim();
+  if (!raw) {
+    document.getElementById('cc-num-value').classList.add('field__input--error');
+    setTimeout(function() { document.getElementById('cc-num-value').classList.remove('field__input--error'); }, 1200);
+    return;
+  }
+  var valueNum = parseFloat(raw);
+  if (isNaN(valueNum)) return;
+  var entries = loadCustomEntries();
+  entries.push({
+    id: uuid(),
+    cardId: cardId,
+    date: todayKey(),
+    time: String(new Date().getHours()).padStart(2, '0') + ':' + String(new Date().getMinutes()).padStart(2, '0'),
+    valueNum: valueNum,
+    text: note,
+    kind: 'custom'
+  });
+  saveCustomEntries(entries);
+  document.getElementById('cc-numeric-modal').hidden = true;
+  renderCustomPanel();
+  showToast('记下了', 'success');
+}
+
+function openNumericHistoryModal(cardId) {
+  var card = loadCustomCards().find(function(c) { return c.id === cardId; });
+  if (!card) return;
+  var entries = customEntriesAll(cardId).slice().reverse().slice(0, 50);
+  var body = entries.length === 0
+    ? '<div class="muted-tiny">还没有记录</div>'
+    : '<ul class="cc-history__list">' + entries.map(function(e) {
+        var note = e.text ? ' · ' + escapeHtml(e.text) : '';
+        return '<li><span class="cc-history__date">' + e.date + ' ' + (e.time || '') + '</span>'
+          + '<span class="cc-history__val">' + e.valueNum + (card.unit ? ' ' + escapeHtml(card.unit) : '') + note + '</span></li>';
+      }).join('') + '</ul>';
+  // 复用 custom-text-modal 来展示历史，最简实现
+  var modal = document.getElementById('custom-text-modal');
+  if (!modal) return;
+  document.getElementById('ct-card-id').value = '';
+  document.getElementById('ct-modal-title').textContent = '「' + card.name + '」历史';
+  document.getElementById('ct-field-label').textContent = '最近 ' + entries.length + ' 条';
+  var ta = document.getElementById('ct-text');
+  ta.value = '';
+  ta.readOnly = true;
+  ta.style.display = 'none';
+  // 把历史 list 渲染到一个临时 div
+  var hint = modal.querySelector('.cc-history__wrap');
+  if (!hint) {
+    hint = document.createElement('div');
+    hint.className = 'cc-history__wrap';
+    var label = modal.querySelector('.field');
+    if (label) label.parentNode.insertBefore(hint, label.nextSibling);
+  }
+  hint.innerHTML = body;
+  openModal(modal);
+}
+
+function relockCustomCard(cardId) {
+  lockCard(cardId);
+  renderCustomPanel();
+  showToast('已上锁', 'info');
 }
 
 // ---- 记梦 ----
@@ -8864,8 +9218,10 @@ function routeQuickAction(quickKey) {
       openCustomManage();
       return true;
     case 'money':
-      showToast('记账还在 Sprint 4 到岗，先用这个提醒自己', 'warning');
-      return false;
+      // Sprint 4：真接通了——锁着先解锁，解锁了直接记一笔
+      if (!isFinanceVisible()) openFinUnlockModal();
+      else openFinanceModal();
+      return true;
   }
   return false;
 }
@@ -8879,11 +9235,16 @@ function openCustomManage() {
     if (cards.length === 0) {
       list.innerHTML = '<p class=\"muted-tiny\">还没有卡片</p>';
     } else {
-      list.innerHTML = cards.map(function(c) {
+      list.innerHTML = cards.map(function(c, idx) {
         var entries = customEntriesAll(c.id);
+        var typeLabel = { counter: '计数', score: '打分', text: '文字', numeric: '数值', cycle: '周期' }[c.type] || '记录';
         return '<div class=\"cc-manage__row\">'
+          + '<span class=\"cc-manage__sort\">'
+          + '<button type=\"button\" class=\"icon-btn\" data-cc-up=\"' + c.id + '\" aria-label=\"上移\" title=\"上移\"' + (idx === 0 ? ' disabled' : '') + '>↑</button>'
+          + '<button type=\"button\" class=\"icon-btn\" data-cc-down=\"' + c.id + '\" aria-label=\"下移\" title=\"下移\"' + (idx === cards.length - 1 ? ' disabled' : '') + '>↓</button>'
+          + '</span>'
           + '<span class=\"cc-manage__name\">' + escapeHtml(c.name) + '</span>'
-          + '<span class=\"cc-manage__type\">' + (c.type === 'counter' ? '计数' : c.type === 'score' ? '打分' : '文字') + '</span>'
+          + '<span class=\"cc-manage__type\">' + typeLabel + '</span>'
           + '<span class=\"cc-manage__count\">' + entries.length + ' 条</span>'
           + '<button type=\"button\" class=\"icon-btn\" data-cc-del-mng=\"' + c.id + '\" aria-label=\"删\">×</button>'
           + '</div>';
@@ -8926,6 +9287,32 @@ function initSprint3() {
   if (ccForm) ccForm.addEventListener('submit', submitCustomCard);
   var ctForm = document.getElementById('custom-text-form');
   if (ctForm) ctForm.addEventListener('submit', submitCustomText);
+
+  // 数值型单位字段 + 上锁 PIN 字段 联动
+  var ccTypeEl = document.getElementById('cc-type');
+  if (ccTypeEl) ccTypeEl.addEventListener('change', function() {
+    var unitField = document.getElementById('cc-unit-field');
+    if (unitField) unitField.hidden = (ccTypeEl.value !== 'numeric');
+  });
+  var ccLockedEl = document.getElementById('cc-locked');
+  if (ccLockedEl) ccLockedEl.addEventListener('change', function() {
+    var pinField = document.getElementById('cc-pin-field');
+    if (pinField) pinField.hidden = !ccLockedEl.checked;
+  });
+
+  // 数值型输入表单
+  var ccNumForm = document.getElementById('cc-numeric-form');
+  if (ccNumForm) ccNumForm.addEventListener('submit', submitNumericEntry);
+
+  // PIN 键盘
+  var pinKeys = document.querySelectorAll('#cc-unlock-modal .pin-key');
+  pinKeys.forEach(function(k) {
+    k.addEventListener('click', function() {
+      var v = k.dataset.pin;
+      if (v === 'del') popPinDigit();
+      else pushPinDigit(v);
+    });
+  });
 
   // 预设芯片
   document.querySelectorAll('.preset-chip').forEach(function(chip) {
@@ -8983,6 +9370,7 @@ function init() {
     bindBasicInteractions();
     initDashboard();
     initSprint3();
+    initSprint4();
     return;
   }
 
@@ -8992,6 +9380,7 @@ function init() {
   bindBasicInteractions();
   initDashboard();
   initSprint3();
+  initSprint4();
 }
 
 function bindBasicInteractions() {
@@ -10737,3 +11126,510 @@ function pollJudgeResults() {
 }
 
 document.addEventListener('DOMContentLoaded', init);
+
+// ============================================================
+// Sprint 4：存款板块 · 记账→时间线 · 睡眠趋势 · 周期卡 · 卡片排序
+// ============================================================
+
+// ---- 存款：数据层 ----
+var STORAGE_FINANCE = 'lifeos_finance';
+var STORAGE_FINANCE_LOCK = 'lifeos_finance_lock';
+var SESSION_FIN_UNLOCKED = 'lifeos_finance_unlocked';
+
+function loadFinance() { return loadJSON(STORAGE_FINANCE, []); }
+function saveFinance(arr) { saveJSON(STORAGE_FINANCE, arr); }
+function loadFinanceLock() { return loadJSON(STORAGE_FINANCE_LOCK, null) || {}; }
+function saveFinanceLock(obj) { saveJSON(STORAGE_FINANCE_LOCK, obj); }
+
+// 看板可见 = 本会话已解锁。没设过 PIN 时第一次解锁就是「设 PIN」流程
+function isFinanceVisible() {
+  try { return sessionStorage.getItem(SESSION_FIN_UNLOCKED) === '1'; } catch(e) { return false; }
+}
+function markFinanceUnlocked() {
+  try { sessionStorage.setItem(SESSION_FIN_UNLOCKED, '1'); } catch(e) {}
+}
+function lockFinance() {
+  try { sessionStorage.removeItem(SESSION_FIN_UNLOCKED); } catch(e) {}
+}
+
+// ---- 存款：渲染 ----
+function renderFinancePanel() {
+  var slide = document.getElementById('fin-slide-main');
+  if (!slide) return;
+  var relockBtn = document.getElementById('fin-relock-btn');
+  var visible = isFinanceVisible();
+  if (relockBtn) relockBtn.hidden = !visible;
+
+  if (!visible) {
+    slide.innerHTML = '<div class="fin-lock">'
+      + '<div class="fin-lock__icon" aria-hidden="true">'
+      + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg>'
+      + '</div>'
+      + '<p class="fin-lock__text">钱的事，默认上锁</p>'
+      + '<button type="button" class="btn btn--primary btn--small" data-fin-unlock>输 PIN 看余额</button>'
+      + '</div>';
+    return;
+  }
+
+  var recs = loadFinance();
+  var today = todayKey();
+  var monthKey = today.slice(0, 7);
+  var balance = 0, monthIn = 0, monthOut = 0;
+  var catMap = {};
+  recs.forEach(function(r) {
+    var amt = parseFloat(r.amount) || 0;
+    if (r.type === 'income') { balance += amt; if (r.date.slice(0,7) === monthKey) monthIn += amt; }
+    else { balance -= amt; if (r.date.slice(0,7) === monthKey) { monthOut += amt; if (r.category) catMap[r.category] = (catMap[r.category] || 0) + amt; } }
+  });
+
+  // 本月支出分类排行（条形，前5）
+  var cats = Object.keys(catMap).map(function(k) { return { name: k, amt: catMap[k] }; })
+    .sort(function(a, b) { return b.amt - a.amt; }).slice(0, 5);
+  var catHtml = '';
+  if (cats.length === 0) {
+    catHtml = '<p class="fin-cats__empty muted-tiny">这个月还没花过钱，或者还没记</p>';
+  } else {
+    var catMax = cats[0].amt || 1;
+    catHtml = '<div class="fin-cats">' + cats.map(function(c) {
+      return '<div class="fin-cat-row">'
+        + '<span class="fin-cat-row__name">' + escapeHtml(c.name) + '</span>'
+        + '<span class="fin-cat-row__bar"><span class="fin-cat-row__fill" style="width:' + Math.max(4, Math.round(c.amt * 100 / catMax)) + '%"></span></span>'
+        + '<span class="fin-cat-row__amt">¥' + c.amt.toFixed(2) + '</span>'
+        + '</div>';
+    }).join('') + '</div>';
+  }
+
+  // 今日账目
+  var todayRecs = recs.filter(function(r) { return r.date === today; }).slice(-4).reverse();
+  var todayHtml = '';
+  if (todayRecs.length > 0) {
+    todayHtml = '<div class="fin-today"><p class="fin-today__title">今天</p>'
+      + todayRecs.map(function(r) {
+          return '<div class="fin-today__row">'
+            + '<span class="fin-today__cat">' + (r.type === 'income' ? '收' : '支') + ' · ' + escapeHtml(r.category) + '</span>'
+            + '<span class="fin-today__amt fin-today__amt--' + r.type + '">' + (r.type === 'income' ? '+' : '-') + '¥' + (parseFloat(r.amount) || 0).toFixed(2) + '</span>'
+            + '</div>';
+        }).join('')
+      + '</div>';
+  }
+
+  slide.innerHTML = '<div class="fin-board">'
+    + '<div class="fin-balance"><span class="fin-balance__label">余额</span>'
+    + '<span class="fin-balance__num">¥' + balance.toFixed(2) + '</span></div>'
+    + '<div class="fin-month"><span class="fin-month__in">本月收 +¥' + monthIn.toFixed(2) + '</span>'
+    + '<span class="fin-month__out">本月支 -¥' + monthOut.toFixed(2) + '</span></div>'
+    + '<p class="fin-cats__title">本月花在哪</p>'
+    + catHtml
+    + todayHtml
+    + '</div>';
+}
+
+// ---- 存款：解锁弹窗（首次=设 PIN，之后=解锁） ----
+var _finPinBuf = '';
+var _finMode = 'unlock'; // 'set1' | 'set2' | 'unlock'
+var _finFirstPin = '';
+
+function openFinUnlockModal() {
+  var modal = document.getElementById('fin-unlock-modal');
+  if (!modal) return;
+  _finPinBuf = '';
+  _finFirstPin = '';
+  var hasPin = !!loadFinanceLock().pinHash;
+  _finMode = hasPin ? 'unlock' : 'set1';
+  document.getElementById('fin-unlock-title').textContent = hasPin ? '解锁存款看板' : '给存款看板设个 PIN';
+  document.getElementById('fin-unlock-hint').textContent = hasPin
+    ? '这个看板默认上锁。输 4 位 PIN 看余额和账目。'
+    : '第一次来。想一个 4 位 PIN，以后看余额都先输它。';
+  document.getElementById('fin-unlock-error').textContent = '';
+  paintFinPinDisplay();
+  openModal(modal);
+}
+
+function paintFinPinDisplay() {
+  var dots = document.querySelectorAll('#fin-unlock-display .pin-dot');
+  dots.forEach(function(dot, i) {
+    if (i < _finPinBuf.length) dot.classList.add('pin-dot--filled');
+    else dot.classList.remove('pin-dot--filled');
+  });
+}
+
+function pushFinPinDigit(d) {
+  if (_finPinBuf.length >= 4) return;
+  if (!/^[0-9]$/.test(d)) return;
+  _finPinBuf += d;
+  paintFinPinDisplay();
+  document.getElementById('fin-unlock-error').textContent = '';
+  if (_finPinBuf.length === 4) {
+    var lock = loadFinanceLock();
+    if (_finMode === 'unlock') {
+      if (verifyPin(_finPinBuf, lock.pinHash)) {
+        markFinanceUnlocked();
+        document.getElementById('fin-unlock-modal').hidden = true;
+        renderFinancePanel();
+        showToast('解锁了', 'success');
+      } else {
+        finPinError('不对，再试一次');
+      }
+    } else if (_finMode === 'set1') {
+      _finFirstPin = _finPinBuf;
+      _finMode = 'set2';
+      document.getElementById('fin-unlock-hint').textContent = '好。再输一次确认，两次一样才算数。';
+      setTimeout(function() { _finPinBuf = ''; paintFinPinDisplay(); }, 250);
+    } else if (_finMode === 'set2') {
+      if (_finPinBuf === _finFirstPin) {
+        saveFinanceLock({ pinHash: simpleHashPin(_finPinBuf), setAt: new Date().toISOString() });
+        markFinanceUnlocked();
+        document.getElementById('fin-unlock-modal').hidden = true;
+        renderFinancePanel();
+        showToast('PIN 设好了，看板开了', 'success');
+      } else {
+        _finMode = 'set1';
+        _finFirstPin = '';
+        document.getElementById('fin-unlock-hint').textContent = '两次不一样。重新想一个 4 位 PIN。';
+        finPinError('两次输入不一致');
+      }
+    }
+  }
+}
+
+function finPinError(msg) {
+  var errEl = document.getElementById('fin-unlock-error');
+  errEl.textContent = msg;
+  errEl.classList.add('field__error--shake');
+  setTimeout(function() { errEl.classList.remove('field__error--shake'); }, 600);
+  setTimeout(function() { _finPinBuf = ''; paintFinPinDisplay(); }, 600);
+}
+
+function popFinPinDigit() {
+  if (_finPinBuf.length === 0) return;
+  _finPinBuf = _finPinBuf.slice(0, -1);
+  paintFinPinDisplay();
+  document.getElementById('fin-unlock-error').textContent = '';
+}
+
+// ---- 存款：记一笔 ----
+function openFinanceModal() {
+  var modal = document.getElementById('finance-modal');
+  if (!modal) return;
+  document.getElementById('fin-amount').value = '';
+  document.getElementById('fin-note').value = '';
+  document.getElementById('fin-amount-error').textContent = '';
+  setFinType('expense');
+  document.getElementById('fin-timeline-field').hidden = true;
+  document.getElementById('fin-timeline').checked = true;
+  openModal(modal);
+  setTimeout(function() { document.getElementById('fin-amount').focus(); }, 200);
+}
+
+function setFinType(t) {
+  document.getElementById('fin-type').value = t;
+  document.querySelectorAll('.fin-type-toggle__btn').forEach(function(b) {
+    b.classList.toggle('is-active', b.dataset.finType === t);
+  });
+  document.getElementById('fin-cat-chips').hidden = (t !== 'expense');
+  document.getElementById('fin-cat-chips-income').hidden = (t !== 'income');
+  // 分类重置为该组第一个
+  var group = t === 'expense' ? document.getElementById('fin-cat-chips') : document.getElementById('fin-cat-chips-income');
+  var first = group ? group.querySelector('.fin-chip') : null;
+  if (first) setFinCategory(first.dataset.cat);
+  document.getElementById('fin-timeline-field').hidden = true;
+}
+
+function setFinCategory(cat) {
+  document.getElementById('fin-category').value = cat;
+  document.querySelectorAll('.fin-chip').forEach(function(c) {
+    c.classList.toggle('is-active', c.dataset.cat === cat);
+  });
+}
+
+// 大额支出（≥300）自动浮现「记进时间线」
+var FIN_TIMELINE_THRESHOLD = 300;
+
+function updateFinTimelineField() {
+  var t = document.getElementById('fin-type').value;
+  var amt = parseFloat(document.getElementById('fin-amount').value);
+  var field = document.getElementById('fin-timeline-field');
+  if (!field) return;
+  field.hidden = !(t === 'expense' && !isNaN(amt) && amt >= FIN_TIMELINE_THRESHOLD);
+}
+
+function submitFinanceEntry(e) {
+  if (e) e.preventDefault();
+  var raw = (document.getElementById('fin-amount').value || '').trim();
+  var amtEl = document.getElementById('fin-amount');
+  var errEl = document.getElementById('fin-amount-error');
+  var amount = parseFloat(raw);
+  if (!raw || isNaN(amount) || amount <= 0) {
+    errEl.textContent = '金额得是大于 0 的数';
+    amtEl.classList.add('field__input--error');
+    setTimeout(function() { amtEl.classList.remove('field__input--error'); }, 1200);
+    return;
+  }
+  var type = document.getElementById('fin-type').value || 'expense';
+  var category = document.getElementById('fin-category').value || '其他';
+  var note = (document.getElementById('fin-note').value || '').trim();
+  var now = new Date();
+  var recs = loadFinance();
+  recs.push({
+    id: uuid(),
+    date: todayKey(),
+    time: String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0'),
+    type: type,
+    category: category,
+    amount: Math.round(amount * 100) / 100,
+    note: note
+  });
+  saveFinance(recs);
+
+  // 联动：勾了「记进时间线」→ 写一条 auto 节点进既往也咎
+  var wentTimeline = false;
+  var tlField = document.getElementById('fin-timeline-field');
+  var tlChecked = document.getElementById('fin-timeline') && document.getElementById('fin-timeline').checked;
+  if (!tlField.hidden && tlChecked) {
+    var timeline = loadJSON(STORAGE_TIMELINE, []);
+    timeline.push({
+      id: uuid(),
+      date: todayKey(),
+      title: (type === 'income' ? '收了一笔 ' : '花了一笔 ') + '¥' + amount.toFixed(2) + ' · ' + category,
+      mood: 'auto',
+      desc: note || (type === 'income' ? '💰 这笔进了时间线，因为它不小' : '💰 这笔进了时间线，因为它不小'),
+      auto: true
+    });
+    saveJSON(STORAGE_TIMELINE, timeline);
+    wentTimeline = true;
+  }
+
+  document.getElementById('finance-modal').hidden = true;
+  renderFinancePanel();
+  showToast('记下了' + (wentTimeline ? '，时间线里也有它' : ''), 'success');
+}
+
+// ---- 睡眠趋势：近 7 天时长曲线（原生 SVG） ----
+function renderSleepTrend() {
+  var el = document.getElementById('sleep-trend-chart');
+  if (!el) return;
+  var days = [];
+  for (var i = 6; i >= 0; i--) {
+    var d = new Date();
+    d.setDate(d.getDate() - i);
+    days.push({
+      key: d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'),
+      label: (d.getMonth() + 1) + '/' + d.getDate()
+    });
+  }
+  var recs = loadSleep();
+  var vals = days.map(function(day) {
+    var r = recs.find(function(x) { return x.date === day.key; });
+    if (!r) return null;
+    var b = parseHM(r.bedtime), w = parseHM(r.waketime);
+    if (b == null || w == null) return null;
+    return w >= b ? (w - b) : (24 * 60 - b + w);
+  });
+  var has = vals.filter(function(v) { return v != null; });
+  if (has.length < 2) {
+    el.innerHTML = '<p class="sleep-trend__hint muted-tiny">多记几晚，这里会长出近 7 天的睡眠曲线</p>';
+    return;
+  }
+  var w = 280, h = 72, padX = 14, padTop = 8, padBottom = 18;
+  var vMax = Math.max.apply(null, has.concat([8 * 60])); // 按 8 小时兜底，曲线不虚高
+  var xStep = (w - 2 * padX) / 6;
+  var yOf = function(v) { return padTop + (1 - v / vMax) * (h - padTop - padBottom); };
+  var pts = vals.map(function(v, i) {
+    var x = padX + i * xStep;
+    return (v == null) ? null : { x: x, y: yOf(v), v: v, label: days[i].label };
+  });
+  var drawn = pts.filter(function(p) { return p != null; });
+  var poly = drawn.map(function(p) { return p.x.toFixed(1) + ',' + p.y.toFixed(1); }).join(' ');
+  // 8 小时参考线
+  var refY = yOf(8 * 60);
+  var dots = drawn.map(function(p) {
+    return '<circle cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) + '" r="2.4" fill="currentColor"/>'
+      + '<text x="' + p.x.toFixed(1) + '" y="' + (h - 4) + '" text-anchor="middle" class="sleep-trend__label">' + p.label + '</text>'
+      + '<title>' + p.label + ' · ' + fmtDuration(p.v) + '</title>';
+  }).join('');
+  el.innerHTML = '<p class="sleep-trend__title">近 7 天 · ' + fmtDuration(Math.round(has.reduce(function(a, b) { return a + b; }, 0) / has.length)) + ' 一晚（均值）</p>'
+    + '<svg viewBox="0 0 ' + w + ' ' + h + '" class="sleep-trend__svg" preserveAspectRatio="xMidYMid meet">'
+    + '<line x1="' + padX + '" y1="' + refY.toFixed(1) + '" x2="' + (w - padX) + '" y2="' + refY.toFixed(1) + '" stroke="currentColor" stroke-width="0.6" stroke-dasharray="3 3" opacity="0.35"/>'
+    + '<text x="' + (w - padX) + '" y="' + (refY - 3).toFixed(1) + '" text-anchor="end" class="sleep-trend__ref">8h</text>'
+    + '<polyline points="' + poly + '" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>'
+    + dots
+    + '</svg>';
+}
+
+// ---- 周期卡：记开始日 + 算规律 ----
+function openCycleModal(cardId) {
+  var card = loadCustomCards().find(function(c) { return c.id === cardId; });
+  if (!card) return;
+  var modal = document.getElementById('cycle-modal');
+  if (!modal) return;
+  document.getElementById('cycle-card-id').value = cardId;
+  document.getElementById('cycle-title').textContent = '「' + card.name + '」记开始日';
+  var d = new Date();
+  document.getElementById('cycle-date').value = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+  openModal(modal);
+}
+
+function submitCycleStart(e) {
+  if (e) e.preventDefault();
+  var cardId = document.getElementById('cycle-card-id').value;
+  var date = document.getElementById('cycle-date').value;
+  if (!cardId || !date) return;
+  // 同一天已经记过就不再重复记
+  var exists = loadCustomEntries().some(function(en) {
+    return en.cardId === cardId && en.kind === 'cycle' && en.date === date;
+  });
+  if (!exists) {
+    var entries = loadCustomEntries();
+    entries.push({
+      id: uuid(),
+      cardId: cardId,
+      date: date,
+      time: String(new Date().getHours()).padStart(2, '0') + ':' + String(new Date().getMinutes()).padStart(2, '0'),
+      valueNum: null,
+      text: '',
+      kind: 'cycle'
+    });
+    saveCustomEntries(entries);
+  }
+  document.getElementById('cycle-modal').hidden = true;
+  renderCustomPanel();
+  showToast(exists ? '这天已经记过了' : '开始日记下了，规律会自己算', 'success');
+}
+
+// 周期推算：平均周期（21-45 截断）、当前状态、下次预测
+function computeCycleInfo(starts) {
+  var PERIOD_DAYS = 5;
+  function parseD(s) {
+    var p = s.split('-');
+    return new Date(parseInt(p[0], 10), parseInt(p[1], 10) - 1, parseInt(p[2], 10));
+  }
+  var last = parseD(starts[starts.length - 1]);
+  var today = new Date();
+  today.setHours(0, 0, 0, 0);
+  var daysSince = Math.round((today - last) / 86400000);
+  var avg = null;
+  if (starts.length >= 2) {
+    var gaps = [];
+    for (var i = 1; i < starts.length; i++) {
+      var g = Math.round((parseD(starts[i]) - parseD(starts[i - 1])) / 86400000);
+      if (g >= 10 && g <= 90) gaps.push(g); // 明显异常的间隔不参与计算
+    }
+    if (gaps.length > 0) {
+      avg = Math.round(gaps.reduce(function(a, b) { return a + b; }, 0) / gaps.length);
+      if (avg < 21) avg = 21;
+      if (avg > 45) avg = 45;
+    }
+  }
+  var info = { avg: avg, nowText: '', nextText: '' };
+  if (daysSince < 0) {
+    info.nowText = '记的是将来的日子？看看日期对不对';
+    return info;
+  }
+  if (daysSince < PERIOD_DAYS) {
+    info.nowText = '经期第 <strong>' + (daysSince + 1) + '</strong> 天';
+    if (avg != null) {
+      var next0 = new Date(last); next0.setDate(next0.getDate() + avg);
+      info.nextText = '按规律，下次约 ' + (next0.getMonth() + 1) + '/' + next0.getDate();
+    }
+    return info;
+  }
+  if (avg != null) {
+    var next = new Date(last);
+    next.setDate(next.getDate() + avg);
+    var until = Math.round((next - today) / 86400000);
+    if (until > 0) {
+      info.nowText = '距下次预计还有 <strong>' + until + '</strong> 天';
+      info.nextText = '下次约 ' + (next.getMonth() + 1) + '/' + next.getDate();
+    } else {
+      info.nowText = '按规律，已经 <strong>' + (-until) + '</strong> 天没来了';
+      info.nextText = '只是参考，别自己吓自己';
+    }
+  } else {
+    info.nowText = '距上次开始 <strong>' + daysSince + '</strong> 天';
+  }
+  return info;
+}
+
+// ---- 卡片排序 ----
+function moveCustomCard(cardId, dir) {
+  var cards = loadCustomCards();
+  var i = -1;
+  cards.forEach(function(c, idx) { if (c.id === cardId) i = idx; });
+  var j = i + dir;
+  if (i < 0 || j < 0 || j >= cards.length) return;
+  var tmp = cards[i];
+  cards[i] = cards[j];
+  cards[j] = tmp;
+  saveCustomCards(cards);
+  openCustomManage();
+  renderCustomPanel();
+}
+
+// ---- Sprint 4 init ----
+function initSprint4() {
+  renderFinancePanel();
+
+  // 记一笔表单
+  var finForm = document.getElementById('finance-form');
+  if (finForm) finForm.addEventListener('submit', submitFinanceEntry);
+
+  // 支出/收入切换
+  document.querySelectorAll('.fin-type-toggle__btn').forEach(function(btn) {
+    btn.addEventListener('click', function() { setFinType(btn.dataset.finType); });
+  });
+
+  // 分类 chips
+  document.querySelectorAll('#fin-cat-chips .fin-chip, #fin-cat-chips-income .fin-chip').forEach(function(chip) {
+    chip.addEventListener('click', function() { setFinCategory(chip.dataset.cat); });
+  });
+
+  // 金额变化 → 大额时浮出「记进时间线」
+  var finAmount = document.getElementById('fin-amount');
+  if (finAmount) finAmount.addEventListener('input', updateFinTimelineField);
+
+  // 存款 PIN 键盘
+  document.querySelectorAll('#fin-unlock-modal .fin-pin-key').forEach(function(k) {
+    k.addEventListener('click', function() {
+      var v = k.dataset.pin;
+      if (v === 'del') popFinPinDigit();
+      else pushFinPinDigit(v);
+    });
+  });
+
+  // 看板头部按钮
+  var finAdd = document.getElementById('fin-add-btn');
+  if (finAdd) finAdd.addEventListener('click', function() {
+    if (isFinanceVisible()) openFinanceModal();
+    else openFinUnlockModal();
+  });
+  var finRelock = document.getElementById('fin-relock-btn');
+  if (finRelock) finRelock.addEventListener('click', function() {
+    lockFinance();
+    renderFinancePanel();
+    showToast('已上锁', 'info');
+  });
+
+  // 看板内容（锁蒙层里的解锁按钮）事件委托
+  var finSlide = document.getElementById('fin-slide-main');
+  if (finSlide) {
+    finSlide.addEventListener('click', function(e) {
+      if (e.target.closest('[data-fin-unlock]')) openFinUnlockModal();
+    });
+  }
+
+  // 周期卡表单
+  var cycleForm = document.getElementById('cycle-form');
+  if (cycleForm) cycleForm.addEventListener('submit', submitCycleStart);
+
+  // 建卡弹窗：计数型才显示挂目标；选了目标才显示方向
+  var ccType = document.getElementById('cc-type');
+  if (ccType) ccType.addEventListener('change', function() {
+    var goalField = document.getElementById('cc-goal-field');
+    if (goalField) goalField.hidden = (ccType.value !== 'counter');
+  });
+  var ccGoal = document.getElementById('cc-goal');
+  if (ccGoal) ccGoal.addEventListener('change', function() {
+    var dirField = document.getElementById('cc-goal-dir-field');
+    if (dirField) dirField.hidden = !ccGoal.value;
+  });
+}

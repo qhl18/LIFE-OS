@@ -7518,6 +7518,221 @@ body.has-photo .bg-glow {
   padding: var(--s-2) 0;
 }
 
+/* Sprint 4a · 数值型卡片 */
+.cc-numeric__today {
+  font-size: 13px;
+  color: var(--t-2);
+  margin-bottom: 2px;
+}
+.cc-numeric__today strong {
+  font-size: 24px;
+  color: var(--c-accent);
+  margin: 0 2px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.cc-numeric__unit {
+  font-size: 12px;
+  color: var(--t-3);
+  margin-left: 4px;
+}
+.cc-sparkline {
+  margin: var(--s-3) 0;
+  padding: var(--s-2);
+  background: rgba(255,255,255,0.02);
+  border-radius: var(--r-sm);
+}
+.cc-sparkline__svg {
+  display: block;
+  width: 100%;
+  height: 40px;
+  color: var(--c-accent);
+  opacity: 0.85;
+}
+.cc-sparkline__range {
+  font-size: 10px;
+  color: var(--t-3);
+  text-align: right;
+  margin-top: 2px;
+  font-variant-numeric: tabular-nums;
+}
+.cc-sparkline--empty {
+  font-size: 11px;
+  color: var(--t-3);
+  text-align: center;
+  padding: var(--s-3);
+  background: transparent;
+}
+
+/* Sprint 4a · 单卡防窥锁 */
+.cc-card__lock-dot {
+  color: var(--c-accent);
+  font-size: 8px;
+  margin-right: 4px;
+  vertical-align: middle;
+}
+.cc-card__actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.cc-card__relock {
+  background: none;
+  border: none;
+  color: var(--c-accent);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 0 4px;
+  -webkit-tap-highlight-color: transparent;
+  display: inline-flex;
+  align-items: center;
+}
+.cc-card__relock svg {
+  width: 14px;
+  height: 14px;
+}
+.cc-card--locked {
+  min-height: 110px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.cc-card__lock-cover {
+  text-align: center;
+  padding: var(--s-4);
+}
+.cc-card__lock-icon {
+  color: var(--c-accent);
+  margin-bottom: var(--s-2);
+}
+.cc-card__lock-icon svg {
+  width: 32px;
+  height: 32px;
+  opacity: 0.6;
+}
+.cc-card__lock-name {
+  font-size: 13px;
+  color: var(--t-2);
+  margin-bottom: var(--s-3);
+}
+
+/* Sprint 4a · PIN 键盘 */
+.pin-display {
+  display: flex;
+  justify-content: center;
+  gap: var(--s-3);
+  margin: var(--s-4) 0;
+}
+.pin-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border-strong);
+  background: transparent;
+  transition: background 0.15s;
+}
+.pin-dot--filled {
+  background: var(--c-accent);
+  border-color: var(--c-accent);
+}
+.pin-keypad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--s-2);
+  margin: var(--s-3) 0;
+}
+.pin-key {
+  height: 48px;
+  font-size: 18px;
+  font-weight: 500;
+  background: var(--bg-modal);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm);
+  color: var(--t-1);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  font-variant-numeric: tabular-nums;
+}
+.pin-key:active {
+  background: var(--bg-card-2);
+  border-color: var(--c-accent);
+}
+.pin-key--empty {
+  background: transparent;
+  border: none;
+  cursor: default;
+}
+.pin-key--del {
+  color: var(--c-accent);
+}
+.field__error--shake {
+  animation: shakeX 0.4s ease-in-out;
+}
+@keyframes shakeX {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-6px); }
+  75% { transform: translateX(6px); }
+}
+
+/* Sprint 4a · 建卡表单：内联复选 / 字段组 */
+.field--inline {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+}
+.field--inline input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--c-accent);
+}
+.field__label-inline {
+  font-size: 13px;
+  color: var(--t-2);
+}
+.field-group {
+  margin-bottom: var(--s-3);
+  padding: var(--s-3);
+  background: var(--bg-modal);
+  border-radius: var(--r-sm);
+  border: 1px dashed var(--border);
+}
+
+/* Sprint 4a · 历史列表 + 小尺寸 modal */
+.cc-history__list {
+  list-style: none;
+  margin: var(--s-3) 0;
+  padding: 0;
+  max-height: 50vh;
+  overflow-y: auto;
+}
+.cc-history__list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: var(--s-2) 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+.cc-history__list li:last-child { border-bottom: none; }
+.cc-history__date {
+  color: var(--t-3);
+  font-variant-numeric: tabular-nums;
+  flex: 0 0 auto;
+  margin-right: var(--s-3);
+}
+.cc-history__val {
+  color: var(--t-1);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.modal__panel--small {
+  max-width: 360px;
+}
+.modal__actions--center {
+  justify-content: center;
+}
+
 /* 头部管理按钮（小图标）*/
 .quad-panel__manage {
   margin-left: auto;
@@ -7582,3 +7797,235 @@ body.has-photo .bg-glow {
 }
 
 
+
+/* ============================================================
+   Sprint 4：存款板块 · 睡眠趋势 · 周期卡 · 卡片挂目标 · 排序
+   ============================================================ */
+
+/* ---- 存款：锁蒙层 ---- */
+.fin-lock {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-3);
+  padding: var(--s-6) var(--s-3);
+  min-height: 160px;
+  text-align: center;
+}
+.fin-lock__icon {
+  width: 34px;
+  height: 34px;
+  color: var(--c-accent);
+  opacity: 0.75;
+}
+.fin-lock__icon svg { width: 100%; height: 100%; }
+.fin-lock__text {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--t-2, rgba(255,255,255,0.65));
+}
+
+/* ---- 存款：看板主体 ---- */
+.fin-board {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+}
+.fin-balance {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.fin-balance__label {
+  font-size: 0.72rem;
+  color: var(--t-3, rgba(255,255,255,0.45));
+  letter-spacing: 0.08em;
+}
+.fin-balance__num {
+  font-size: 1.7rem;
+  font-weight: 700;
+  color: var(--c-accent);
+  font-variant-numeric: tabular-nums;
+}
+.fin-month {
+  display: flex;
+  gap: var(--s-3);
+  font-size: 0.75rem;
+}
+.fin-month__in { color: var(--c-success); }
+.fin-month__out { color: var(--c-danger); }
+
+.fin-cats__title,
+.fin-today__title {
+  margin: var(--s-1) 0 0;
+  font-size: 0.72rem;
+  color: var(--t-3, rgba(255,255,255,0.45));
+  letter-spacing: 0.06em;
+}
+.fin-cats__empty { margin: var(--s-1) 0 0; }
+.fin-cat-row {
+  display: grid;
+  grid-template-columns: 3.2em 1fr auto;
+  align-items: center;
+  gap: var(--s-2);
+  margin-top: 4px;
+  font-size: 0.75rem;
+}
+.fin-cat-row__name {
+  color: var(--t-2, rgba(255,255,255,0.65));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.fin-cat-row__bar {
+  height: 5px;
+  border-radius: 3px;
+  background: rgba(255,255,255,0.06);
+  overflow: hidden;
+}
+.fin-cat-row__fill {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--c-accent-2), var(--c-accent));
+}
+.fin-cat-row__amt {
+  font-variant-numeric: tabular-nums;
+  color: var(--t-2, rgba(255,255,255,0.65));
+}
+.fin-today {
+  border-top: 1px solid rgba(255,255,255,0.06);
+  padding-top: var(--s-2);
+}
+.fin-today__row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.75rem;
+  margin-top: 3px;
+}
+.fin-today__cat { color: var(--t-2, rgba(255,255,255,0.65)); }
+.fin-today__amt { font-variant-numeric: tabular-nums; }
+.fin-today__amt--income { color: var(--c-success); }
+.fin-today__amt--expense { color: var(--t-1, rgba(255,255,255,0.85)); }
+
+/* ---- 存款：记一笔弹窗 ---- */
+.fin-type-toggle {
+  display: flex;
+  gap: var(--s-2);
+  margin-bottom: var(--s-3);
+}
+.fin-type-toggle__btn {
+  flex: 1;
+  padding: var(--s-2);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--t-2, rgba(255,255,255,0.65));
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.fin-type-toggle__btn.is-active {
+  border-color: var(--c-accent);
+  background: var(--c-accent-soft);
+  color: var(--c-accent);
+}
+.fin-cat-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: var(--s-2);
+}
+.fin-chip {
+  padding: 4px 12px;
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--t-2, rgba(255,255,255,0.65));
+  font-size: 0.78rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.fin-chip.is-active {
+  border-color: var(--c-accent);
+  background: var(--c-accent-soft);
+  color: var(--c-accent);
+}
+
+/* ---- 睡眠趋势图 ---- */
+.sleep-trend {
+  margin-top: var(--s-3);
+  padding: var(--s-2) var(--s-3);
+  background: rgba(255,255,255,0.02);
+  border-radius: var(--r-sm);
+}
+.sleep-trend__title {
+  margin: 0 0 4px;
+  font-size: 0.72rem;
+  color: var(--t-3, rgba(255,255,255,0.45));
+  letter-spacing: 0.05em;
+}
+.sleep-trend__svg {
+  display: block;
+  width: 100%;
+  color: var(--c-accent);
+}
+.sleep-trend__label {
+  font-size: 7px;
+  fill: rgba(255,255,255,0.45);
+}
+.sleep-trend__ref {
+  font-size: 7px;
+  fill: rgba(255,255,255,0.35);
+}
+.sleep-trend__hint { margin: 0; }
+
+/* ---- 周期卡 ---- */
+.cc-cycle__stat,
+.cc-cycle__now,
+.cc-cycle__next {
+  font-size: 0.78rem;
+  margin-top: 3px;
+  color: var(--t-2, rgba(255,255,255,0.65));
+}
+.cc-cycle__now strong,
+.cc-cycle__stat strong { color: var(--c-accent); }
+.cc-cycle__next {
+  font-size: 0.72rem;
+  color: var(--t-3, rgba(255,255,255,0.45));
+}
+.cc-cycle__hint { margin: var(--s-1) 0; }
+
+/* ---- 卡片挂目标 ---- */
+.cc-card__goal {
+  margin-top: var(--s-2);
+  padding-top: var(--s-2);
+  border-top: 1px dashed rgba(255,255,255,0.1);
+  font-size: 0.72rem;
+  color: var(--t-3, rgba(255,255,255,0.45));
+}
+.cc-card__goal-dir {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 0 4px;
+  border: 1px solid var(--c-warning);
+  border-radius: 3px;
+  color: var(--c-warning);
+  font-size: 0.64rem;
+}
+
+/* ---- 卡片排序 ---- */
+.cc-manage__sort {
+  display: inline-flex;
+  gap: 2px;
+}
+.cc-manage__sort .icon-btn {
+  padding: 2px 6px;
+  font-size: 0.8rem;
+  line-height: 1;
+}
+.cc-manage__sort .icon-btn:disabled {
+  opacity: 0.25;
+  cursor: default;
+}
