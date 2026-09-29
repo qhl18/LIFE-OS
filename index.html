@@ -102,6 +102,12 @@
     <span class="topbar__brand">LifeOS</span>
     <div class="topbar__right">
       <span class="topbar__motto">记录即存在</span>
+      <button class="topbar__theme-btn" id="settings-btn" type="button" aria-label="设置" title="设置">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09a1.65 1.65 0 00-1-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09a1.65 1.65 0 001.51-1 1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33h0a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51h0a1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82v0a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z"/>
+        </svg>
+      </button>
       <button class="topbar__theme-btn" id="theme-btn" type="button" aria-label="皮肤设置" title="皮肤设置">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
           <circle cx="12" cy="12" r="9"/>
@@ -210,6 +216,7 @@
                   <input type="number" id="sleep-napMinutes" class="field__input" min="0" placeholder="可选">
                 </label>
                 <div class="sleep-form__bottom">
+                  <button type="button" class="btn btn--ghost btn--small" id="watch-btn">⌚ 手环粘贴</button>
                   <button type="button" class="btn btn--ghost btn--small" id="sleep-dream-btn">记个梦</button>
                   <button type="submit" class="btn btn--primary btn--small">记下睡眠</button>
                 </div>
@@ -1741,6 +1748,139 @@
         <div class="confirm-modal__actions">
           <button type="button" class="btn btn--ghost" data-close-confirm>取消</button>
           <button type="button" class="btn btn--danger" id="confirm-ok">删除</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sprint 5：设置中心 -->
+    <div class="modal" id="settings-modal" hidden>
+      <div class="modal__overlay" data-close-settings></div>
+      <div class="modal__panel">
+        <h2 class="modal__title">设置</h2>
+
+        <!-- 智能提醒 -->
+        <div class="set-section">
+          <p class="set-section__title">智能提醒</p>
+          <label class="set-row">
+            <span class="set-row__info">
+              <strong>人文提醒</strong>
+              <small>根据目标完成情况，在你需要时轻声说一句。数据攒够前它不会打扰你。</small>
+            </span>
+            <button type="button" class="toggle" id="smart-reminder-toggle" aria-label="开关智能提醒"><span class="toggle__knob"></span></button>
+          </label>
+        </div>
+
+        <!-- 看板锁 -->
+        <div class="set-section">
+          <p class="set-section__title">看板防窥锁</p>
+          <p class="set-section__hint" id="applock-status-hint">未开启。开启后每次打开 LifeOS 都要先输 PIN。</p>
+          <div class="set-section__btns">
+            <button type="button" class="btn btn--primary btn--small" id="applock-setup-btn">开启 / 修改</button>
+            <button type="button" class="btn btn--danger-weak btn--small" id="applock-off-btn" hidden>关闭锁</button>
+          </div>
+        </div>
+
+        <!-- 数据备份 -->
+        <div class="set-section">
+          <p class="set-section__title">数据备份</p>
+          <p class="set-section__hint">你的所有记录只存在这台设备上。导出一份 JSON，放到安全的地方——建议每周一次。</p>
+          <div class="set-section__btns">
+            <button type="button" class="btn btn--primary btn--small" id="backup-export-btn">导出备份</button>
+            <button type="button" class="btn btn--ghost btn--small" id="backup-import-btn">从备份恢复</button>
+            <input type="file" id="backup-file-input" accept="application/json,.json" hidden>
+          </div>
+        </div>
+
+        <div class="modal__actions">
+          <button type="button" class="btn btn--ghost" data-close-settings>关闭</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sprint 5：看板锁设置弹窗（PIN + 找回问题） -->
+    <div class="modal" id="applock-setup-modal" hidden>
+      <div class="modal__overlay" data-close-applock-setup></div>
+      <div class="modal__panel">
+        <h2 class="modal__title" id="applock-setup-title">开启看板锁</h2>
+        <p class="modal__hint" id="applock-setup-hint">设一个 4 位 PIN。忘了也不怕——下面这个问题答对就能找回。</p>
+        <form id="applock-setup-form" novalidate>
+          <label class="field">
+            <span class="field__label">PIN（4 位数字）</span>
+            <input type="password" id="applock-pin" class="field__input" inputmode="numeric" maxlength="4" placeholder="••••" autocomplete="new-password">
+          </label>
+          <label class="field">
+            <span class="field__label">找回问题</span>
+            <input type="text" id="applock-question" class="field__input" placeholder="例如：我最想去的城市是哪？" maxlength="40">
+          </label>
+          <label class="field">
+            <span class="field__label">问题答案</span>
+            <input type="text" id="applock-answer" class="field__input" placeholder="答案不区分大小写" maxlength="40">
+          </label>
+          <p class="field__error" id="applock-setup-error"></p>
+          <div class="modal__actions">
+            <button type="button" class="btn btn--ghost" data-close-applock-setup>取消</button>
+            <button type="submit" class="btn btn--primary">存好</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Sprint 5：手环数据粘贴导入 -->
+    <div class="modal" id="watch-import-modal" hidden>
+      <div class="modal__overlay" data-close-watch></div>
+      <div class="modal__panel">
+        <h2 class="modal__title">手环数据 · 粘贴导入</h2>
+        <p class="modal__hint">把手环 App 里显示的睡眠数据复制进来（文本就行），我来认。认出来的会填进下面的表单，你确认了才算数。</p>
+        <form id="watch-import-form" novalidate>
+          <label class="field">
+            <span class="field__label">粘贴手环数据</span>
+            <textarea id="watch-input" class="field__input" rows="5" placeholder="例如：&#10;入睡 23:40 · 醒来 07:10&#10;深睡 1小时32分 浅睡 5小时3分 清醒 12分钟&#10;午睡 25分钟"></textarea>
+          </label>
+          <p class="field__error" id="watch-import-error"></p>
+          <p class="watch-result" id="watch-result" hidden></p>
+          <div class="modal__actions">
+            <button type="button" class="btn btn--ghost" data-close-watch>取消</button>
+            <button type="button" class="btn btn--ghost" id="watch-parse-btn">先认一认</button>
+            <button type="button" class="btn btn--primary" id="watch-apply-btn" hidden>填进表单</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Sprint 5：应用级防窥锁全屏层 -->
+    <div class="applock-screen" id="applock-screen" hidden>
+      <div class="applock-screen__box">
+        <div class="applock-screen__icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <rect x="5" y="11" width="14" height="9" rx="2"/>
+            <path d="M8 11V7a4 4 0 018 0v4"/>
+          </svg>
+        </div>
+        <p class="applock-screen__title" id="applock-screen__title">LifeOS 上着锁</p>
+        <div class="applock-screen__dots" id="applock-dots" aria-hidden="true">
+          <span></span><span></span><span></span><span></span>
+        </div>
+        <div class="applock-screen__keys" id="applock-keys">
+          <button type="button" data-key="1">1</button><button type="button" data-key="2">2</button><button type="button" data-key="3">3</button>
+          <button type="button" data-key="4">4</button><button type="button" data-key="5">5</button><button type="button" data-key="6">6</button>
+          <button type="button" data-key="7">7</button><button type="button" data-key="8">8</button><button type="button" data-key="9">9</button>
+          <button type="button" data-key="del" aria-label="删除">⌫</button><button type="button" data-key="0">0</button><button type="button" data-key="ok" aria-label="确认">✓</button>
+        </div>
+        <p class="applock-screen__error" id="applock-error"></p>
+        <button type="button" class="applock-screen__recover" id="applock-recover-btn" hidden>忘记 PIN？用找回问题</button>
+      </div>
+    </div>
+
+    <!-- Sprint 5：找回问题弹窗（从锁屏进入） -->
+    <div class="applock-recover" id="applock-recover" hidden>
+      <div class="applock-recover__box">
+        <p class="applock-recover__title">回答你的找回问题</p>
+        <p class="applock-recover__q" id="applock-recover-q"></p>
+        <input type="text" id="applock-recover-a" class="field__input" placeholder="你的答案" maxlength="40">
+        <p class="applock-screen__error" id="applock-recover-error"></p>
+        <div class="applock-recover__btns">
+          <button type="button" class="btn btn--ghost btn--small" id="applock-recover-back">返回</button>
+          <button type="button" class="btn btn--primary btn--small" id="applock-recover-ok">验证</button>
         </div>
       </div>
     </div>

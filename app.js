@@ -9371,6 +9371,14 @@ function init() {
     initDashboard();
     initSprint3();
     initSprint4();
+    initSprint5();
+    return;
+  }
+
+  // Sprint 5：先看板锁。锁着时，先不渲染任何内容
+  if (isAppLocked() && !isAppUnlockedThisSession()) {
+    showAppLockScreen('unlock');
+    _bindLockKeys();
     return;
   }
 
@@ -9381,6 +9389,7 @@ function init() {
   initDashboard();
   initSprint3();
   initSprint4();
+  initSprint5();
 }
 
 function bindBasicInteractions() {
@@ -11632,4 +11641,565 @@ function initSprint4() {
     var dirField = document.getElementById('cc-goal-dir-field');
     if (dirField) dirField.hidden = !ccGoal.value;
   });
+}
+
+// ============================================================
+// Sprint 5：智能提醒 · 手环粘贴 · deadline 节点轴 · 数据备份 · 看板锁
+// ============================================================
+
+// ---- 存储 key ----
+var STORAGE_SETTINGS_S5 = 'lifeos_settings';
+var STORAGE_APPLOCK = 'lifeos_app_lock';
+var SESSION_APP_UNLOCKED = 'lifeos_app_unlocked';
+
+function loadSettingsS5() {
+  return loadJSON(STORAGE_SETTINGS_S5, { smartReminders: true });
+}
+function saveSettingsS5(s) {
+  saveJSON(STORAGE_SETTINGS_S5, s);
+}
+
+// ============================================================
+// 1) 智能提醒：根据以往完成情况，人文语气，数据不够时静默
+// ============================================================
+function checkSmartReminders() {
+  var settings = loadSettingsS5();
+  if (!settings.smartReminders) return;
+
+  var goals = loadGoals().filter(function(g) { return !g.completed; });
+  var today = todayKey();
+  var yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
+  var yesterdayKey = formatDate(yesterday.toISOString());
+
+  goals.forEach(function(g) {
+    var checkins = g.checkins || [];
+    // 数据够不够本提醒开口（计划表：攒 2-4 周才有意义，这里放低到 5 次/7 天）
+    var created = g.createdAt ? new Date(g.createdAt) : null;
+    var ageDays = created ? daysBetween(created, new Date()) : 0;
+    if (checkins.length < 5 && ageDays < 7) return;
+
+    var keyToday = 'smart_' + today + '_' + g.id;
+
+    // a. 断签：昨天没打，但之前连续 >= 3 天
+    var hadYesterday = checkins.some(function(c) { return c.date === yesterdayKey; });
+    if (!hadYesterday) {
+      var streakBefore = 0;
+      var cursor = new Date(yesterday); cursor.setDate(cursor.getDate() - 1);
+      while (checkins.some(function(c) { return c.date === formatDate(cursor.toISOString()); })) {
+        streakBefore++;
+        cursor.setDate(cursor.getDate() - 1);
+      }
+      if (streakBefore >= 3) {
+        showReminderBanner(keyToday + '_break', '🌱',
+          '「' + g.name + '」昨天断了，今天捡起来，连续重新起算',
+          '去看看', function() { switchView('goals'); });
+        return; // 一个目标一天只说一句
+      }
+    }
+
+    // b. 节奏灯红了
+    if (calcPace(g) === 'red') {
+      showReminderBanner(keyToday + '_red', '🚦',
+        '「' + g.name + '」的节奏灯变红了，看一眼要不要调',
+        '去看看', function() { switchView('goals'); });
+      return;
+    }
+
+    // c. 临期：deadline 7 天内且进度 < 70%
+    if (g.deadline) {
+      var remain = daysBetween(new Date(), g.deadline);
+      var pct = Math.round(calcProgress(g) * 100);
+      if (remain >= 0 && remain <= 7 && pct < 70) {
+        showReminderBanner(keyToday + '_due', '⏳',
+          '「' + g.name + '」还剩 ' + remain + ' 天，进度 ' + pct + '%',
+          '去看看', function() { switchView('goals'); });
+      }
+    }
+  });
+}
+
+// ============================================================
+// 2) 手环数据粘贴导入（半自动，纯文本解析，不碰 API）
+// ============================================================
+function _watchParseDur(str) {
+  if (!str) return null;
+  var h = str.match(/(\d+)\s*(?:小时|h)/i);
+  var m = str.match(/(\d+)\s*(?:分钟|分(?!钟)|m(?!o))/i);
+  var total = 0;
+  if (h) total += parseInt(h[1], 10) * 60;
+  if (m) total += parseInt(m[1], 10);
+  return total > 0 ? total : null;
+}
+
+function parseWatchText(text) {
+  var out = {};
+  var src = (text || '').replace(/清醒时间|醒来时间/g, '醒来');
+  // 时间点
+  var bt = src.match(/(?:入睡|上床|睡觉)[^\d]{0,8}(\d{1,2}):(\d{2})/);
+  if (bt) out.bedtime = bt[1].padStart(2, '0') + ':' + bt[2];
+  var wt = src.match(/(?:醒来|起床)[^\d]{0,8}(\d{1,2}):(\d{2})/);
+  if (wt) out.waketime = wt[1].padStart(2, '0') + ':' + wt[2];
+  // 分段时长
+  var LABELS = [
+    ['deepMin', /深睡|深眠/],
+    ['lightMin', /浅睡|浅眠|轻睡/],
+    ['awakeMin', /清醒|醒着/],
+    ['napMinutes', /午睡|午休/]
+  ];
+  LABELS.forEach(function(L) {
+    var idx = src.search(L[1]);
+    if (idx === -1) return;
+    var rest = src.slice(idx).replace(L[1], '');
+    LABELS.forEach(function(L2) {
+      var j = rest.search(L2[1]);
+      if (j > 0) rest = rest.slice(0, j);
+    });
+    var dur = _watchParseDur(rest);
+    if (dur) out[L[0]] = dur;
+  });
+  return out;
+}
+
+function _watchDescribe(parsed) {
+  var parts = [];
+  if (parsed.bedtime) parts.push('入睡 ' + parsed.bedtime);
+  if (parsed.waketime) parts.push('醒来 ' + parsed.waketime);
+  if (parsed.deepMin != null) parts.push('深睡 ' + parsed.deepMin + ' 分');
+  if (parsed.lightMin != null) parts.push('浅睡 ' + parsed.lightMin + ' 分');
+  if (parsed.awakeMin != null) parts.push('清醒 ' + parsed.awakeMin + ' 分');
+  if (parsed.napMinutes != null) parts.push('午睡 ' + parsed.napMinutes + ' 分');
+  return parts;
+}
+
+var _watchParsed = null;
+
+function openWatchImportModal() {
+  var modal = document.getElementById('watch-import-modal');
+  if (!modal) return;
+  document.getElementById('watch-input').value = '';
+  document.getElementById('watch-import-error').textContent = '';
+  var res = document.getElementById('watch-result');
+  res.hidden = true;
+  res.textContent = '';
+  document.getElementById('watch-apply-btn').hidden = true;
+  _watchParsed = null;
+  openModal(modal);
+  setTimeout(function() { document.getElementById('watch-input').focus(); }, 200);
+}
+
+function watchParseAndShow() {
+  var text = document.getElementById('watch-input').value;
+  var errEl = document.getElementById('watch-import-error');
+  var resEl = document.getElementById('watch-result');
+  errEl.textContent = '';
+  var parsed = parseWatchText(text);
+  var desc = _watchDescribe(parsed);
+  if (desc.length === 0) {
+    _watchParsed = null;
+    resEl.hidden = true;
+    document.getElementById('watch-apply-btn').hidden = true;
+    errEl.textContent = '没认出来。试试写上「入睡 23:40」「深睡 1小时30分」这样的字。';
+    return;
+  }
+  _watchParsed = parsed;
+  resEl.hidden = false;
+  resEl.textContent = '认出来了：' + desc.join(' · ');
+  document.getElementById('watch-apply-btn').hidden = false;
+}
+
+function watchApplyToForm() {
+  if (!_watchParsed) return;
+  var p = _watchParsed;
+  if (p.bedtime) document.getElementById('sleep-bedtime').value = p.bedtime;
+  if (p.waketime) document.getElementById('sleep-waketime').value = p.waketime;
+  if (p.deepMin != null) document.getElementById('sleep-deepMin').value = p.deepMin;
+  if (p.lightMin != null) document.getElementById('sleep-lightMin').value = p.lightMin;
+  if (p.awakeMin != null) document.getElementById('sleep-awakeMin').value = p.awakeMin;
+  if (p.napMinutes != null) document.getElementById('sleep-napMinutes').value = p.napMinutes;
+  // 手动刷新占比条（renderSleepPanel 会用旧记录覆盖，不能直接调）
+  var bar = document.getElementById('sleep-ratio-bar');
+  var ratioText = document.getElementById('sleep-ratio-text');
+  if (bar) {
+    var total = (p.deepMin || 0) + (p.lightMin || 0) + (p.awakeMin || 0);
+    if (total > 0) {
+      bar.innerHTML = '<div class="ratio-seg ratio-seg--deep" style="width:' + ((p.deepMin || 0) * 100 / total) + '%"></div>'
+        + '<div class="ratio-seg ratio-seg--light" style="width:' + ((p.lightMin || 0) * 100 / total) + '%"></div>'
+        + '<div class="ratio-seg ratio-seg--awake" style="width:' + ((p.awakeMin || 0) * 100 / total) + '%"></div>';
+      if (ratioText) ratioText.textContent = '深 ' + Math.round((p.deepMin || 0) * 100 / total) + '% · 浅 ' + Math.round((p.lightMin || 0) * 100 / total) + '% · 醒 ' + Math.round((p.awakeMin || 0) * 100 / total) + '%';
+    }
+  }
+  document.getElementById('watch-import-modal').hidden = true;
+  showToast('已填进表单，确认无误就点「记下睡眠」', 'success');
+}
+
+// ============================================================
+// 3) 真实数据驱动：deadline 节点轴（今日第三屏）
+// ============================================================
+function renderDeadlineAxis() {
+  var slide = document.getElementById('today-slide-goals');
+  if (!slide) return;
+  var old = document.getElementById('deadline-axis');
+  if (old) old.remove();
+
+  var goals = loadGoals().filter(function(g) { return !g.completed && g.deadline; });
+  var wrap = document.createElement('div');
+  wrap.className = 'dl-axis';
+  wrap.id = 'deadline-axis';
+
+  if (goals.length === 0) {
+    var anyGoal = loadGoals().some(function(g) { return !g.completed; });
+    wrap.innerHTML = '<p class="dl-axis__hint">' + (anyGoal
+      ? '给目标加上截止日，这里会长出一条节点轴'
+      : '立一个带截止日的目标，节点轴会替你盯着') + '</p>';
+    slide.appendChild(wrap);
+    return;
+  }
+
+  goals.sort(function(a, b) { return new Date(a.deadline) - new Date(b.deadline); });
+  var now = new Date();
+  var minT = now.getTime();
+  var maxT = new Date(goals[goals.length - 1].deadline).getTime();
+  var span = Math.max(maxT - minT, 14 * 86400000); // 至少铺 14 天，节点不挤在右端
+
+  var nodesHtml = goals.slice(0, 8).map(function(g) {
+    var dd = new Date(g.deadline);
+    var days = daysBetween(now, dd);
+    var pct = Math.min(97, Math.max(3, (dd.getTime() - minT) / span * 100));
+    var pace = calcPace(g);
+    var cls = 'dl-node' + (pace === 'red' ? ' dl-node--red' : pace === 'yellow' ? ' dl-node--yellow' : ' dl-node--green')
+      + (days < 0 ? ' dl-node--over' : '');
+    return '<button type="button" class="' + cls + '" data-goal-go="' + g.id + '" style="left:' + pct + '%" '
+      + 'title="' + escapeHtml(g.name) + ' · ' + (days < 0 ? '逾期 ' + (-days) + ' 天' : '还剩 ' + days + ' 天') + '">'
+      + '<span class="dl-node__dot"></span>'
+      + '<span class="dl-node__label">' + escapeHtml(g.name.length > 6 ? g.name.slice(0, 6) + '…' : g.name) + '</span>'
+      + '</button>';
+  }).join('');
+
+  wrap.innerHTML = '<p class="dl-axis__title">⏱ 截止日节点轴 <small>点节点跳目标</small></p>'
+    + '<div class="dl-axis__track"><div class="dl-axis__now" title="今天"></div>' + nodesHtml + '</div>';
+  slide.appendChild(wrap);
+}
+
+// 挂在原渲染后面
+var _renderTodayGoalsOrig = renderTodayGoals;
+renderTodayGoals = function() {
+  _renderTodayGoalsOrig();
+  renderDeadlineAxis();
+};
+
+// ============================================================
+// 4) 数据备份：导出 / 恢复（全部 lifeos_ 前缀）
+// ============================================================
+function exportBackup() {
+  var data = {};
+  for (var i = 0; i < localStorage.length; i++) {
+    var k = localStorage.key(i);
+    if (k && k.indexOf('lifeos_') === 0) data[k] = localStorage.getItem(k);
+  }
+  var payload = {
+    app: 'LifeOS',
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    keys: Object.keys(data).length,
+    data: data
+  };
+  var blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  var a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'LifeOS_backup_' + todayKey() + '.json';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(function() { URL.revokeObjectURL(a.href); }, 3000);
+  showToast('备份已导出（' + payload.keys + ' 项数据），记得放安全的地方', 'success');
+}
+
+function importBackupFile(file) {
+  var reader = new FileReader();
+  reader.onload = function() {
+    try {
+      var payload = JSON.parse(reader.result);
+      if (payload.app !== 'LifeOS' || !payload.data) {
+        showToast('这不是 LifeOS 的备份文件', 'error');
+        return;
+      }
+      var ok = window.confirm(
+        '恢复备份会覆盖当前全部 ' + Object.keys(payload.data).length + ' 项数据（导出于 '
+        + (payload.exportedAt || '未知时间').slice(0, 10) + '）。\n\n确定继续吗？'
+      );
+      if (!ok) return;
+      Object.keys(payload.data).forEach(function(k) {
+        localStorage.setItem(k, payload.data[k]);
+      });
+      showToast('恢复完成，重新加载中…', 'success');
+      setTimeout(function() { location.reload(); }, 800);
+    } catch (e) {
+      showToast('备份文件读不出来：' + e.message, 'error');
+    }
+  };
+  reader.readAsText(file);
+}
+
+// ============================================================
+// 5) 看板级防窥锁 + 找回问题
+// ============================================================
+function loadAppLock() {
+  return loadJSON(STORAGE_APPLOCK, null); // {pinHash, question, answerHash}
+}
+function isAppLocked() {
+  return !!loadAppLock();
+}
+function isAppUnlockedThisSession() {
+  try { return sessionStorage.getItem(SESSION_APP_UNLOCKED) === '1'; } catch (e) { return true; }
+}
+
+var _applockBuffer = '';
+var _applockAction = 'unlock'; // 'unlock' | 'off'
+
+function showAppLockScreen(action) {
+  var screen = document.getElementById('applock-screen');
+  if (!screen) return;
+  _applockAction = action || 'unlock';
+  _applockBuffer = '';
+  _updateApplockDots();
+  document.getElementById('applock-error').textContent = '';
+  document.getElementById('applock-screen__title').textContent =
+    _applockAction === 'off' ? '输 PIN 关闭看板锁' : 'LifeOS 上着锁';
+  var lock = loadAppLock();
+  document.getElementById('applock-recover-btn').hidden = !lock || !lock.question || _applockAction === 'off';
+  var recoverBox = document.getElementById('applock-recover');
+  if (recoverBox) recoverBox.hidden = true;
+  screen.hidden = false;
+}
+
+function hideAppLockScreen() {
+  var screen = document.getElementById('applock-screen');
+  if (screen) screen.hidden = true;
+}
+
+function _updateApplockDots() {
+  var dots = document.querySelectorAll('#applock-dots span');
+  dots.forEach(function(d, i) {
+    d.classList.toggle('is-filled', i < _applockBuffer.length);
+  });
+}
+
+function _applockKey(k) {
+  var lock = loadAppLock();
+  if (!lock) return;
+  if (k === 'del') {
+    _applockBuffer = _applockBuffer.slice(0, -1);
+    _updateApplockDots();
+    return;
+  }
+  if (k === 'ok') {
+    if (_applockBuffer.length === 4) _applockVerify(lock);
+    return;
+  }
+  if (_applockBuffer.length >= 4) return;
+  _applockBuffer += k;
+  _updateApplockDots();
+  if (_applockBuffer.length === 4) setTimeout(function() { _applockVerify(lock); }, 150);
+}
+
+function _applockVerify(lock) {
+  if (verifyPin(_applockBuffer, lock.pinHash)) {
+    if (_applockAction === 'off') {
+      saveJSON(STORAGE_APPLOCK, null);
+      localStorage.removeItem(STORAGE_APPLOCK);
+      showToast('看板锁已关闭，正在刷新…', 'success');
+    } else {
+      try { sessionStorage.setItem(SESSION_APP_UNLOCKED, '1'); } catch (e) {}
+      showToast('解锁成功，正在刷新…', 'success');
+    }
+    setTimeout(function() { location.reload(); }, 500);
+  } else {
+    document.getElementById('applock-error').textContent = 'PIN 不对，再试一次';
+    _applockBuffer = '';
+    setTimeout(_updateApplockDots, 300);
+  }
+}
+
+function _applockRecoverShow() {
+  var lock = loadAppLock();
+  if (!lock || !lock.question) return;
+  var box = document.getElementById('applock-recover');
+  document.getElementById('applock-recover-q').textContent = lock.question;
+  document.getElementById('applock-recover-a').value = '';
+  document.getElementById('applock-recover-error').textContent = '';
+  box.hidden = false;
+}
+
+function _applockRecoverVerify() {
+  var lock = loadAppLock();
+  var input = document.getElementById('applock-recover-a').value.trim().toLowerCase();
+  if (!lock || simpleHashPin(input) !== lock.answerHash) {
+    document.getElementById('applock-recover-error').textContent = '答案不对';
+    return;
+  }
+  // 答对了：直接解锁 + 引导重设 PIN
+  try { sessionStorage.setItem(SESSION_APP_UNLOCKED, '1'); } catch (e) {}
+  showToast('验证通过。建议去 设置 → 看板防窥锁 换个新 PIN', 'success');
+  setTimeout(function() { location.reload(); }, 500);
+}
+
+function _bindLockKeys() {
+  var keys = document.getElementById('applock-keys');
+  if (keys) {
+    keys.addEventListener('click', function(e) {
+      var btn = e.target.closest('[data-key]');
+      if (btn) _applockKey(btn.dataset.key);
+    });
+  }
+  var recoverBtn = document.getElementById('applock-recover-btn');
+  if (recoverBtn) recoverBtn.addEventListener('click', _applockRecoverShow);
+  var recoverBack = document.getElementById('applock-recover-back');
+  if (recoverBack) recoverBack.addEventListener('click', function() {
+    document.getElementById('applock-recover').hidden = true;
+  });
+  var recoverOk = document.getElementById('applock-recover-ok');
+  if (recoverOk) recoverOk.addEventListener('click', _applockRecoverVerify);
+  var recoverInput = document.getElementById('applock-recover-a');
+  if (recoverInput) {
+    recoverInput.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') { e.preventDefault(); _applockRecoverVerify(); }
+    });
+  }
+}
+
+function openApplockSetupModal() {
+  var modal = document.getElementById('applock-setup-modal');
+  if (!modal) return;
+  var lock = loadAppLock();
+  document.getElementById('applock-setup-title').textContent = lock ? '修改看板锁' : '开启看板锁';
+  document.getElementById('applock-pin').value = '';
+  document.getElementById('applock-question').value = lock ? (lock.question || '') : '';
+  document.getElementById('applock-answer').value = '';
+  document.getElementById('applock-setup-error').textContent = '';
+  openModal(modal);
+  setTimeout(function() { document.getElementById('applock-pin').focus(); }, 200);
+}
+
+function saveApplockFromForm() {
+  var pin = document.getElementById('applock-pin').value.trim();
+  var question = document.getElementById('applock-question').value.trim();
+  var answer = document.getElementById('applock-answer').value.trim();
+  var errEl = document.getElementById('applock-setup-error');
+
+  if (!/^\d{4}$/.test(pin)) { errEl.textContent = 'PIN 要 4 位数字'; return; }
+  if (question.length < 4) { errEl.textContent = '找回问题至少 4 个字，不然将来自己也想不起来'; return; }
+  if (answer.length < 1) { errEl.textContent = '答案不能为空'; return; }
+
+  saveJSON(STORAGE_APPLOCK, {
+    pinHash: simpleHashPin(pin),
+    question: question,
+    answerHash: simpleHashPin(answer.toLowerCase())
+  });
+  document.getElementById('applock-setup-modal').hidden = true;
+  try { sessionStorage.setItem(SESSION_APP_UNLOCKED, '1'); } catch (e) {}
+  showToast('看板锁已生效，下次打开要先输 PIN', 'success');
+  refreshSettingsUI();
+}
+
+function refreshSettingsUI() {
+  // 智能提醒开关
+  var settings = loadSettingsS5();
+  var toggle = document.getElementById('smart-reminder-toggle');
+  if (toggle) toggle.classList.toggle('is-on', !!settings.smartReminders);
+  // 看板锁状态
+  var lock = loadAppLock();
+  var hint = document.getElementById('applock-status-hint');
+  var offBtn = document.getElementById('applock-off-btn');
+  var setupBtn = document.getElementById('applock-setup-btn');
+  if (hint) hint.textContent = lock ? '已开启。每次打开 LifeOS 都要先输 PIN。' : '未开启。开启后每次打开 LifeOS 都要先输 PIN。';
+  if (offBtn) offBtn.hidden = !lock;
+  if (setupBtn) setupBtn.textContent = lock ? '修改 PIN / 找回问题' : '开启 / 修改';
+}
+
+// ============================================================
+// Sprint 5 初始化
+// ============================================================
+function initSprint5() {
+  // 智能提醒（在原有 checkReminders 之后跑）
+  setTimeout(checkSmartReminders, 600);
+
+  // 设置弹窗
+  var settingsBtn = document.getElementById('settings-btn');
+  var settingsModal = document.getElementById('settings-modal');
+  if (settingsBtn && settingsModal) {
+    settingsBtn.addEventListener('click', function() {
+      refreshSettingsUI();
+      openModal(settingsModal);
+    });
+    settingsModal.querySelectorAll('[data-close-settings]').forEach(function(el) {
+      el.addEventListener('click', function() { settingsModal.hidden = true; });
+    });
+  }
+
+  // 智能提醒开关
+  var toggle = document.getElementById('smart-reminder-toggle');
+  if (toggle) {
+    toggle.addEventListener('click', function() {
+      var s = loadSettingsS5();
+      s.smartReminders = !s.smartReminders;
+      saveSettingsS5(s);
+      refreshSettingsUI();
+      showToast(s.smartReminders ? '人文提醒已开' : '人文提醒已关，世界清静了', 'success');
+    });
+  }
+
+  // 看板锁设置
+  var setupBtn = document.getElementById('applock-setup-btn');
+  if (setupBtn) setupBtn.addEventListener('click', function() {
+    document.getElementById('settings-modal').hidden = true;
+    openApplockSetupModal();
+  });
+  var offBtn = document.getElementById('applock-off-btn');
+  if (offBtn) offBtn.addEventListener('click', function() {
+    document.getElementById('settings-modal').hidden = true;
+    showAppLockScreen('off');
+    _bindLockKeys();
+  });
+  var lockForm = document.getElementById('applock-setup-form');
+  if (lockForm) {
+    lockForm.addEventListener('submit', function(e) {
+      e.preventDefault();
+      saveApplockFromForm();
+    });
+    document.querySelectorAll('[data-close-applock-setup]').forEach(function(el) {
+      el.addEventListener('click', function() {
+        document.getElementById('applock-setup-modal').hidden = true;
+      });
+    });
+  }
+
+  // 数据备份
+  var exportBtn = document.getElementById('backup-export-btn');
+  if (exportBtn) exportBtn.addEventListener('click', exportBackup);
+  var importBtn = document.getElementById('backup-import-btn');
+  var fileInput = document.getElementById('backup-file-input');
+  if (importBtn && fileInput) {
+    importBtn.addEventListener('click', function() { fileInput.click(); });
+    fileInput.addEventListener('change', function() {
+      if (fileInput.files && fileInput.files[0]) importBackupFile(fileInput.files[0]);
+      fileInput.value = '';
+    });
+  }
+
+  // 手环粘贴
+  var watchBtn = document.getElementById('watch-btn');
+  if (watchBtn) watchBtn.addEventListener('click', openWatchImportModal);
+  var watchModal = document.getElementById('watch-import-modal');
+  if (watchModal) {
+    watchModal.querySelectorAll('[data-close-watch]').forEach(function(el) {
+      el.addEventListener('click', function() { watchModal.hidden = true; });
+    });
+  }
+  var parseBtn = document.getElementById('watch-parse-btn');
+  if (parseBtn) parseBtn.addEventListener('click', watchParseAndShow);
+  var applyBtn = document.getElementById('watch-apply-btn');
+  if (applyBtn) applyBtn.addEventListener('click', watchApplyToForm);
+  // 表单内按回车也不允许触发默认提交（会刷新页面清掉解析结果）
+  var watchForm = document.getElementById('watch-import-form');
+  if (watchForm) watchForm.addEventListener('submit', function(e) { e.preventDefault(); });
 }

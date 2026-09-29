@@ -8029,3 +8029,311 @@ body.has-photo .bg-glow {
   opacity: 0.25;
   cursor: default;
 }
+
+/* ============================================================
+   Sprint 5：设置中心 · 智能提醒 · 手环粘贴 · deadline 节点轴 · 看板锁
+   ============================================================ */
+
+/* ---- 设置弹窗分区 ---- */
+.set-section {
+  padding: var(--s-3) 0;
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+}
+.set-section:last-of-type { border-bottom: none; }
+.set-section__title {
+  margin: 0 0 var(--s-2);
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--t-1, rgba(255,255,255,0.88));
+  letter-spacing: 0.05em;
+}
+.set-section__hint {
+  margin: 0 0 var(--s-2);
+  font-size: 0.74rem;
+  color: var(--t-3, rgba(255,255,255,0.45));
+  line-height: 1.5;
+}
+.set-section__btns {
+  display: flex;
+  gap: var(--s-2);
+  flex-wrap: wrap;
+}
+
+/* ---- 设置行（标签 + 开关） ---- */
+.set-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+}
+.set-row__info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.set-row__info strong {
+  font-size: 0.85rem;
+  color: var(--t-1, rgba(255,255,255,0.88));
+}
+.set-row__info small {
+  font-size: 0.72rem;
+  color: var(--t-3, rgba(255,255,255,0.45));
+  line-height: 1.45;
+}
+
+/* ---- 开关 ---- */
+.toggle {
+  position: relative;
+  width: 46px;
+  height: 26px;
+  flex-shrink: 0;
+  border: 1px solid rgba(255,255,255,0.18);
+  border-radius: 999px;
+  background: rgba(255,255,255,0.06);
+  cursor: pointer;
+  transition: all 0.18s ease;
+  padding: 0;
+}
+.toggle__knob {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.55);
+  transition: all 0.18s ease;
+}
+.toggle.is-on {
+  border-color: var(--c-accent);
+  background: var(--c-accent-soft);
+}
+.toggle.is-on .toggle__knob {
+  left: 23px;
+  background: var(--c-accent);
+}
+
+/* ---- 手环粘贴识别结果 ---- */
+.watch-result {
+  margin: var(--s-1) 0 0;
+  padding: var(--s-2);
+  border-radius: var(--r-sm);
+  background: var(--c-accent-soft);
+  border: 1px solid var(--c-accent);
+  font-size: 0.78rem;
+  color: var(--c-accent);
+  line-height: 1.5;
+}
+
+/* ---- deadline 节点轴 ---- */
+.dl-axis {
+  margin-top: var(--s-3);
+  padding-top: var(--s-2);
+  border-top: 1px dashed rgba(255,255,255,0.1);
+}
+.dl-axis__title {
+  margin: 0 0 26px;
+  font-size: 0.72rem;
+  color: var(--t-3, rgba(255,255,255,0.45));
+  letter-spacing: 0.05em;
+}
+.dl-axis__title small {
+  margin-left: 6px;
+  opacity: 0.7;
+  font-weight: 400;
+}
+.dl-axis__hint {
+  margin: var(--s-1) 0 0;
+  font-size: 0.74rem;
+  color: var(--t-3, rgba(255,255,255,0.4));
+}
+.dl-axis__track {
+  position: relative;
+  height: 56px;
+  margin: 0 6px;
+}
+.dl-axis__track::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 14px;
+  height: 2px;
+  border-radius: 1px;
+  background: linear-gradient(90deg, var(--c-accent), rgba(255,255,255,0.12));
+  opacity: 0.6;
+}
+.dl-axis__now {
+  position: absolute;
+  left: 0;
+  top: 6px;
+  width: 2px;
+  height: 18px;
+  background: var(--c-accent);
+  border-radius: 1px;
+  box-shadow: 0 0 6px var(--c-accent);
+}
+.dl-axis__now::after {
+  content: '今天';
+  position: absolute;
+  top: 22px;
+  left: -12px;
+  font-size: 9px;
+  color: var(--t-3, rgba(255,255,255,0.4));
+  white-space: nowrap;
+}
+.dl-node {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 52px;
+}
+.dl-node__dot {
+  width: 10px;
+  height: 10px;
+  margin-top: 10px;
+  border-radius: 50%;
+  background: var(--c-accent);
+  border: 2px solid var(--bg-card, #141414);
+  box-shadow: 0 0 4px var(--c-accent);
+  transition: transform 0.15s ease;
+}
+.dl-node:hover .dl-node__dot { transform: scale(1.4); }
+.dl-node__label {
+  margin-top: 8px;
+  font-size: 9px;
+  color: var(--t-3, rgba(255,255,255,0.5));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 52px;
+}
+.dl-node--red .dl-node__dot {
+  background: var(--c-danger, #e5484d);
+  box-shadow: 0 0 5px var(--c-danger, #e5484d);
+}
+.dl-node--yellow .dl-node__dot {
+  background: var(--c-warning, #f5a623);
+  box-shadow: 0 0 5px var(--c-warning, #f5a623);
+}
+.dl-node--over .dl-node__label { color: var(--c-danger, #e5484d); }
+
+/* ---- 应用级锁屏 ---- */
+.applock-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-page, #0b0b0b);
+}
+.applock-screen__box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-3);
+  width: min(320px, 86vw);
+}
+.applock-screen__icon {
+  width: 40px;
+  height: 40px;
+  color: var(--c-accent);
+  opacity: 0.8;
+}
+.applock-screen__icon svg { width: 100%; height: 100%; }
+.applock-screen__title {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--t-1, rgba(255,255,255,0.88));
+  letter-spacing: 0.08em;
+}
+.applock-screen__dots {
+  display: flex;
+  gap: 12px;
+}
+.applock-screen__dots span {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255,255,255,0.3);
+  transition: all 0.15s ease;
+}
+.applock-screen__dots span.is-filled {
+  background: var(--c-accent);
+  border-color: var(--c-accent);
+}
+.applock-screen__keys {
+  display: grid;
+  grid-template-columns: repeat(3, 72px);
+  gap: 14px;
+}
+.applock-screen__keys button {
+  height: 58px;
+  border-radius: 50%;
+  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(255,255,255,0.04);
+  color: var(--t-1, rgba(255,255,255,0.88));
+  font-size: 1.25rem;
+  cursor: pointer;
+  transition: all 0.12s ease;
+}
+.applock-screen__keys button:active {
+  background: var(--c-accent-soft);
+  border-color: var(--c-accent);
+  transform: scale(0.94);
+}
+.applock-screen__error {
+  margin: 0;
+  min-height: 1.2em;
+  font-size: 0.78rem;
+  color: var(--c-danger, #e5484d);
+}
+.applock-screen__recover {
+  background: none;
+  border: none;
+  color: var(--t-3, rgba(255,255,255,0.45));
+  font-size: 0.78rem;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0;
+}
+
+/* ---- 找回问题层（锁屏内嵌） ---- */
+.applock-recover {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-page, #0b0b0b);
+}
+.applock-recover__box {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  width: min(340px, 86vw);
+}
+.applock-recover__title {
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--t-1, rgba(255,255,255,0.88));
+}
+.applock-recover__q {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--c-accent);
+  line-height: 1.5;
+}
+.applock-recover__btns {
+  display: flex;
+  gap: var(--s-2);
+  justify-content: flex-end;
+}
