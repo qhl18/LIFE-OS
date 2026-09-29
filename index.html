@@ -1709,6 +1709,13 @@
             <span class="field__label" id="ct-field-label">写点什么</span>
             <textarea id="ct-text" class="field__input" rows="4" maxlength="2000" placeholder="此刻想说的，写下来就好"></textarea>
           </label>
+          <!-- Sprint 6：照片附件（IndexedDB，不占 localStorage） -->
+          <div class="cc-photo-area">
+            <button type="button" class="cc-photo-btn" id="ct-photo-btn">📷 附照片</button>
+            <input type="file" id="ct-photo-input" accept="image/*" multiple hidden>
+            <div class="cc-photo-thumbs" id="ct-photo-thumbs"></div>
+            <p class="muted-tiny" id="ct-photo-hint" hidden>照片存在本机浏览器里（IndexedDB），不进 JSON 备份，换设备记得单独导出</p>
+          </div>
           <div class="modal__actions">
             <button type="button" class="btn btn--ghost" data-close-modal>取消</button>
             <button type="submit" class="btn btn--primary" id="ct-submit">记下了</button>

@@ -1,0 +1,43 @@
+{
+  "date": "2026-09-29",
+  "phase": "阶段一收官",
+  "sprint": 6,
+  "sprint6_features": {
+    "trend_range_toggle": {
+      "sleep": "近7天/近30天 切换，状态落库 lifeos_sleep_trend_range",
+      "finance": "本月/近30天 切换，状态落库 lifeos_fin_cat_range",
+      "goal_detail": "月(30天)/周(7天) 切换，状态落库 lifeos_trend_range，X轴自适应",
+      "status": "done"
+    },
+    "photo_attachments": {
+      "storage": "IndexedDB lifeos_photos，不占 localStorage 5MB",
+      "entry_form": "写一笔弹窗选图，最多6张，缩略图预览可移除",
+      "card_view": "最近一笔照片缩略图（前4张+溢出+N），点开大图",
+      "backup_note": "备份JSON不含照片二进制",
+      "status": "done"
+    },
+    "ux_fix": "quad-swipe overflow auto：四宫格纵向内容可滚，不被裁切"
+  },
+  "tests": {
+    "e2e": "test_sprint6.js 24/24 通过",
+    "test_side_fixes": [
+      "存款pill在视口底部(y=997)坐标点击落空→DOM click兜底",
+      "种子日期改为 今天/10天前/45天前 三档验证窗口边界",
+      "puppeteer uploadFile CDP注入磁盘文件偶发ERR_ACCESS_DENIED→页面内File+DataTransfer构造"
+    ]
+  },
+  "phase1_status": {
+    "sprint1_骨架导航主题": "done",
+    "sprint2_今日板块": "done",
+    "sprint3_睡眠饮食联动": "done",
+    "sprint4_自定义记录存款记账周期": "done",
+    "sprint5_提醒手环备份看板锁": "done",
+    "sprint6_周期切换照片附件": "done",
+    "percent": 100
+  },
+  "pending": [
+    "课程表批量导入（等用户课表文本）",
+    "git push ×10（网络恢复后）"
+  ],
+  "next": "阶段二：PWA + OCR 提醒 + 云备份（Supabase 就位未启用），待用户开跑"
+}

@@ -2542,8 +2542,8 @@ function openSubGoalDetail(parentId, childId) {
     html += '<p class="empty-hint">该子目标已完成 🎉</p>';
   }
 
-  // ---- 趋势图 ----
-  html += '<h3 class="section-title">近30天趋势</h3>';
+  // ---- 趋势图（Sprint 6：周/月切换） ----
+  html += _trendTitleHTML();
   if (child.checkins && child.checkins.length > 0) {
     html += '<div class="chart-wrap"><canvas id="trend-canvas"></canvas></div>';
   } else {
@@ -2677,11 +2677,12 @@ function openSubGoalDetail(parentId, childId) {
     });
   });
 
-  // 趋势图绘制
+  // 趋势图绘制 + 周期切换
   if (child.checkins && child.checkins.length > 0) {
     setTimeout(function() {
       drawTrendChart(child);
     }, 50);
+    _bindTrendRangeToggle(content, function() { drawTrendChart(child); });
   }
 }
 
@@ -3218,8 +3219,8 @@ function openGoalDetail(id) {
     }
   }
 
-  // ---- 趋势图 ----
-  html += '<h3 class="section-title">近30天趋势</h3>';
+  // ---- 趋势图（Sprint 6：周/月切换） ----
+  html += _trendTitleHTML();
   if (goal.checkins && goal.checkins.length > 0) {
     html += '<div class="chart-wrap"><canvas id="trend-canvas"></canvas></div>';
   } else {
@@ -3602,9 +3603,10 @@ function openGoalDetail(id) {
     }, 0);
   }
 
-  // ---- 趋势图 ----
+  // ---- 趋势图 + 周期切换 ----
   if (goal.checkins && goal.checkins.length > 0) {
     drawTrendChart(goal);
+    _bindTrendRangeToggle(content, function() { drawTrendChart(goal); });
   }
 }
 
@@ -4446,9 +4448,37 @@ function showProbUnlockCard(goalId) {
   modal.hidden = false;
 }
 
-function drawTrendChart(goal) {
+// ---- 趋势周期切换（Sprint 6：周/月） ----
+var _goalTrendRange = loadJSON('lifeos_trend_range', 'month') || 'month';
+
+function _trendTitleHTML() {
+  return '<div class="trend-head"><h3 class="section-title">趋势</h3>'
+    + '<div class="range-toggle">'
+    + '<button type="button" class="range-toggle__pill' + (_goalTrendRange === 'week' ? ' is-active' : '') + '" data-trend-range="week">周</button>'
+    + '<button type="button" class="range-toggle__pill' + (_goalTrendRange === 'month' ? ' is-active' : '') + '" data-trend-range="month">月</button>'
+    + '</div></div>';
+}
+
+// 绑定趋势切换 pills（目标详情弹窗内），redraw 传回执函数
+function _bindTrendRangeToggle(scope, redraw) {
+  if (!scope) return;
+  scope.querySelectorAll('[data-trend-range]').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      _goalTrendRange = btn.dataset.trendRange;
+      saveJSON('lifeos_trend_range', _goalTrendRange);
+      scope.querySelectorAll('[data-trend-range]').forEach(function(b) {
+        b.classList.toggle('is-active', b.dataset.trendRange === _goalTrendRange);
+      });
+      if (typeof redraw === 'function') redraw();
+    });
+  });
+}
+
+function drawTrendChart(goal, range) {
   var canvas = document.getElementById('trend-canvas');
   if (!canvas) return;
+  var range_ = range || _goalTrendRange || 'month';
+  var nDays = range_ === 'week' ? 7 : 30;
   var dpr = window.devicePixelRatio || 1;
   var w = canvas.offsetWidth;
   var h = 160;
@@ -4461,7 +4491,7 @@ function drawTrendChart(goal) {
   var days = [];
   var today = new Date();
   today.setHours(0,0,0,0);
-  for (var i = 29; i >= 0; i--) {
+  for (var i = nDays - 1; i >= 0; i--) {
     var d = new Date(today);
     d.setDate(d.getDate() - i);
     var key = formatDate(d.toISOString());
@@ -4508,11 +4538,12 @@ function drawTrendChart(goal) {
     ctx.fillText(String(val), padL - 6, y + 3);
   }
 
-  // X 轴日期刻度
+  // X 轴日期刻度（周视图全标，月视图每 5 天一标）
   ctx.textAlign = 'center';
+  var labelStep = nDays === 7 ? 1 : 5;
   days.forEach(function(d, i) {
-    if (i % 5 === 0 || i === 29) {
-      var x = padL + (chartW / 29) * i;
+    if (i % labelStep === 0 || i === nDays - 1) {
+      var x = padL + (chartW / (nDays - 1)) * i;
       var dt = new Date(d.date);
       ctx.fillText((dt.getMonth()+1) + '/' + dt.getDate(), x, h - 6);
     }
@@ -4521,7 +4552,7 @@ function drawTrendChart(goal) {
   // 折线
   ctx.beginPath();
   days.forEach(function(d, i) {
-    var x = padL + (chartW / 29) * i;
+    var x = padL + (chartW / (nDays - 1)) * i;
     var y = padT + chartH * (1 - d.total / maxVal);
     if (i === 0) ctx.moveTo(x, y);
     else ctx.lineTo(x, y);
@@ -4540,7 +4571,7 @@ function drawTrendChart(goal) {
   // 数据点
   days.forEach(function(d, i) {
     if (d.total === 0) return;
-    var x = padL + (chartW / 29) * i;
+    var x = padL + (chartW / (nDays - 1)) * i;
     var y = padT + chartH * (1 - d.total / maxVal);
     ctx.beginPath();
     ctx.arc(x, y, 3, 0, Math.PI * 2);
@@ -8789,7 +8820,19 @@ function renderCustomPanel() {
       }
     } else { // text
       var lastText = entries[entries.length - 1];
+      // Sprint 6：最近一条带照片的，显示缩略图
+      var lastWithPhotos = null;
+      for (var li = entries.length - 1; li >= 0; li--) {
+        if (entries[li].photoIds && entries[li].photoIds.length) { lastWithPhotos = entries[li]; break; }
+      }
+      var photoThumbsHtml = '';
+      if (lastWithPhotos && lastWithPhotos.photoIds.length) {
+        photoThumbsHtml = '<div class="cc-photo-thumbs">' + lastWithPhotos.photoIds.slice(0, 4).map(function(pid) {
+          return '<img class="cc-photo-thumb" data-cc-photo="' + pid + '" alt="照片附件" loading="lazy">';
+        }).join('') + (lastWithPhotos.photoIds.length > 4 ? '<span class="cc-photo-more">+' + (lastWithPhotos.photoIds.length - 4) + '</span>' : '') + '</div>';
+      }
       body = '<div class=\"cc-text__last\">' + (lastText ? (escapeHtml((lastText.text || '').slice(0, 40)) + ((lastText.text || '').length > 40 ? '…' : '')) : '<span class=\"muted-tiny\">还没有记录</span>') + '</div>'
+        + photoThumbsHtml
         + '<div class=\"cc-counter__actions\"><button type=\"button\" class=\"btn btn--primary btn--small\" data-cc-write=\"' + c.id + '\">写一笔</button></div>';
     }
     // Sprint 4：挂目标的卡，显示目标进度
@@ -8815,6 +8858,19 @@ function renderCustomPanel() {
       + goalLine
       + '</div>';
   }).join('');
+  _hydrateCardPhotos(panel); // Sprint 6：异步把 IndexedDB 里的照片填进缩略图
+}
+
+// Sprint 6：把 [data-cc-photo] 缩略图从 IndexedDB 异步加载出来
+function _hydrateCardPhotos(scope) {
+  if (!scope) return;
+  scope.querySelectorAll('img[data-cc-photo]').forEach(function(img) {
+    var pid = img.dataset.ccPhoto;
+    photoGetURL(pid).then(function(url) {
+      if (url) img.src = url;
+      else img.style.display = 'none';
+    }).catch(function() { img.style.display = 'none'; });
+  });
 }
 
 // 数值型卡 · 30天 sparkline（原生 SVG 折线图）
@@ -8899,6 +8955,7 @@ function openCustomTextModal(cardId) {
   document.getElementById('ct-modal-title').textContent = card.name;
   document.getElementById('ct-field-label').textContent = '在「' + card.name + '」里写一笔';
   document.getElementById('ct-text').value = '';
+  _ctResetPhotos(); // Sprint 6：清掉上一回没提交的照片
   openModal(modal);
   setTimeout(function() { document.getElementById('ct-text').focus(); }, 200);
 }
@@ -8907,10 +8964,18 @@ function submitCustomText(e) {
   if (e) e.preventDefault();
   var cardId = document.getElementById('ct-card-id').value;
   var text = (document.getElementById('ct-text').value || '').trim();
-  if (!text) {
+  var hasPhotos = _ctPendingPhotos.length > 0;
+  if (!text && !hasPhotos) {
     document.getElementById('ct-text').classList.add('field__input--error');
     setTimeout(function() { document.getElementById('ct-text').classList.remove('field__input--error'); }, 1200);
     return;
+  }
+  var photoIds = [];
+  if (hasPhotos) {
+    _ctPendingPhotos.forEach(function(p) {
+      photoPut(p.id, p.blob);
+      photoIds.push(p.id);
+    });
   }
   var entries = loadCustomEntries();
   entries.push({
@@ -8920,12 +8985,14 @@ function submitCustomText(e) {
     time: String(new Date().getHours()).padStart(2, '0') + ':' + String(new Date().getMinutes()).padStart(2, '0'),
     valueNum: null,
     text: text,
+    photoIds: photoIds,
     kind: 'custom'
   });
   saveCustomEntries(entries);
+  _ctResetPhotos();
   document.getElementById('custom-text-modal').hidden = true;
   renderCustomPanel();
-  showToast('记下了', 'success');
+  showToast(photoIds.length > 0 ? '记下了（带 ' + photoIds.length + ' 张照片）' : '记下了', 'success');
 }
 
 function openCustomCardModal() {
@@ -9372,6 +9439,7 @@ function init() {
     initSprint3();
     initSprint4();
     initSprint5();
+    initSprint6();
     return;
   }
 
@@ -9390,6 +9458,7 @@ function init() {
   initSprint3();
   initSprint4();
   initSprint5();
+  initSprint6();
 }
 
 function bindBasicInteractions() {
@@ -11162,6 +11231,9 @@ function lockFinance() {
 }
 
 // ---- 存款：渲染 ----
+// ---- 存款看板（Sprint 6：分类趋势 本月/近30天 切换） ----
+var _finCatRange = loadJSON('lifeos_fin_cat_range', 'month') || 'month';
+
 function renderFinancePanel() {
   var slide = document.getElementById('fin-slide-main');
   if (!slide) return;
@@ -11185,18 +11257,24 @@ function renderFinancePanel() {
   var monthKey = today.slice(0, 7);
   var balance = 0, monthIn = 0, monthOut = 0;
   var catMap = {};
+  var cutoff30 = new Date();
+  cutoff30.setDate(cutoff30.getDate() - 29);
+  var cutoffKey = cutoff30.getFullYear() + '-' + String(cutoff30.getMonth() + 1).padStart(2, '0') + '-' + String(cutoff30.getDate()).padStart(2, '0');
+  var inRange = function(dateStr) {
+    return _finCatRange === 'd30' ? dateStr >= cutoffKey : dateStr.slice(0, 7) === monthKey;
+  };
   recs.forEach(function(r) {
     var amt = parseFloat(r.amount) || 0;
     if (r.type === 'income') { balance += amt; if (r.date.slice(0,7) === monthKey) monthIn += amt; }
-    else { balance -= amt; if (r.date.slice(0,7) === monthKey) { monthOut += amt; if (r.category) catMap[r.category] = (catMap[r.category] || 0) + amt; } }
+    else { balance -= amt; if (r.date.slice(0,7) === monthKey) monthOut += amt; if (r.category && inRange(r.date)) catMap[r.category] = (catMap[r.category] || 0) + amt; }
   });
 
-  // 本月支出分类排行（条形，前5）
+  // 支出分类排行（条形，前5，本月或近30天）
   var cats = Object.keys(catMap).map(function(k) { return { name: k, amt: catMap[k] }; })
     .sort(function(a, b) { return b.amt - a.amt; }).slice(0, 5);
   var catHtml = '';
   if (cats.length === 0) {
-    catHtml = '<p class="fin-cats__empty muted-tiny">这个月还没花过钱，或者还没记</p>';
+    catHtml = '<p class="fin-cats__empty muted-tiny">' + (_finCatRange === 'd30' ? '近 30 天还没花过钱，或者还没记' : '这个月还没花过钱，或者还没记') + '</p>';
   } else {
     var catMax = cats[0].amt || 1;
     catHtml = '<div class="fin-cats">' + cats.map(function(c) {
@@ -11227,10 +11305,21 @@ function renderFinancePanel() {
     + '<span class="fin-balance__num">¥' + balance.toFixed(2) + '</span></div>'
     + '<div class="fin-month"><span class="fin-month__in">本月收 +¥' + monthIn.toFixed(2) + '</span>'
     + '<span class="fin-month__out">本月支 -¥' + monthOut.toFixed(2) + '</span></div>'
-    + '<p class="fin-cats__title">本月花在哪</p>'
+    + '<div class="trend-head"><p class="fin-cats__title">' + (_finCatRange === 'd30' ? '近 30 天花在哪' : '本月花在哪') + '</p>'
+    + '<div class="range-toggle">'
+    + '<button type="button" class="range-toggle__pill' + (_finCatRange === 'month' ? ' is-active' : '') + '" data-fin-range="month">月</button>'
+    + '<button type="button" class="range-toggle__pill' + (_finCatRange === 'd30' ? ' is-active' : '') + '" data-fin-range="d30">30天</button>'
+    + '</div></div>'
     + catHtml
     + todayHtml
     + '</div>';
+  slide.querySelectorAll('[data-fin-range]').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      _finCatRange = btn.dataset.finRange;
+      saveJSON('lifeos_fin_cat_range', _finCatRange);
+      renderFinancePanel();
+    });
+  });
 }
 
 // ---- 存款：解锁弹窗（首次=设 PIN，之后=解锁） ----
@@ -11413,12 +11502,15 @@ function submitFinanceEntry(e) {
   showToast('记下了' + (wentTimeline ? '，时间线里也有它' : ''), 'success');
 }
 
-// ---- 睡眠趋势：近 7 天时长曲线（原生 SVG） ----
+// ---- 睡眠趋势：周/月周期切换（Sprint 6，原生 SVG） ----
+var _sleepTrendRange = loadJSON('lifeos_sleep_trend_range', 'week') || 'week';
+
 function renderSleepTrend() {
   var el = document.getElementById('sleep-trend-chart');
   if (!el) return;
+  var nDays = _sleepTrendRange === 'month' ? 30 : 7;
   var days = [];
-  for (var i = 6; i >= 0; i--) {
+  for (var i = nDays - 1; i >= 0; i--) {
     var d = new Date();
     d.setDate(d.getDate() - i);
     days.push({
@@ -11436,12 +11528,12 @@ function renderSleepTrend() {
   });
   var has = vals.filter(function(v) { return v != null; });
   if (has.length < 2) {
-    el.innerHTML = '<p class="sleep-trend__hint muted-tiny">多记几晚，这里会长出近 7 天的睡眠曲线</p>';
+    el.innerHTML = '<p class="sleep-trend__hint muted-tiny">多记几晚，这里会长出近 ' + (nDays === 7 ? 7 : 30) + ' 天的睡眠曲线</p>';
     return;
   }
   var w = 280, h = 72, padX = 14, padTop = 8, padBottom = 18;
   var vMax = Math.max.apply(null, has.concat([8 * 60])); // 按 8 小时兜底，曲线不虚高
-  var xStep = (w - 2 * padX) / 6;
+  var xStep = (w - 2 * padX) / (nDays - 1);
   var yOf = function(v) { return padTop + (1 - v / vMax) * (h - padTop - padBottom); };
   var pts = vals.map(function(v, i) {
     var x = padX + i * xStep;
@@ -11451,18 +11543,31 @@ function renderSleepTrend() {
   var poly = drawn.map(function(p) { return p.x.toFixed(1) + ',' + p.y.toFixed(1); }).join(' ');
   // 8 小时参考线
   var refY = yOf(8 * 60);
-  var dots = drawn.map(function(p) {
+  var labelStep = nDays === 7 ? 1 : 5; // 月视图每 5 天标一个日期
+  var dots = drawn.map(function(p, di) {
+    var showLabel = nDays === 7 ? true : (di % labelStep === 0);
     return '<circle cx="' + p.x.toFixed(1) + '" cy="' + p.y.toFixed(1) + '" r="2.4" fill="currentColor"/>'
-      + '<text x="' + p.x.toFixed(1) + '" y="' + (h - 4) + '" text-anchor="middle" class="sleep-trend__label">' + p.label + '</text>'
+      + (showLabel ? '<text x="' + p.x.toFixed(1) + '" y="' + (h - 4) + '" text-anchor="middle" class="sleep-trend__label">' + p.label + '</text>' : '')
       + '<title>' + p.label + ' · ' + fmtDuration(p.v) + '</title>';
   }).join('');
-  el.innerHTML = '<p class="sleep-trend__title">近 7 天 · ' + fmtDuration(Math.round(has.reduce(function(a, b) { return a + b; }, 0) / has.length)) + ' 一晚（均值）</p>'
+  el.innerHTML = '<div class="trend-head"><p class="sleep-trend__title">近 ' + (nDays === 7 ? 7 : 30) + ' 天 · ' + fmtDuration(Math.round(has.reduce(function(a, b) { return a + b; }, 0) / has.length)) + ' 一晚（均值）</p>'
+    + '<div class="range-toggle">'
+    + '<button type="button" class="range-toggle__pill' + (_sleepTrendRange === 'week' ? ' is-active' : '') + '" data-sleep-range="week">周</button>'
+    + '<button type="button" class="range-toggle__pill' + (_sleepTrendRange === 'month' ? ' is-active' : '') + '" data-sleep-range="month">月</button>'
+    + '</div></div>'
     + '<svg viewBox="0 0 ' + w + ' ' + h + '" class="sleep-trend__svg" preserveAspectRatio="xMidYMid meet">'
     + '<line x1="' + padX + '" y1="' + refY.toFixed(1) + '" x2="' + (w - padX) + '" y2="' + refY.toFixed(1) + '" stroke="currentColor" stroke-width="0.6" stroke-dasharray="3 3" opacity="0.35"/>'
     + '<text x="' + (w - padX) + '" y="' + (refY - 3).toFixed(1) + '" text-anchor="end" class="sleep-trend__ref">8h</text>'
     + '<polyline points="' + poly + '" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>'
     + dots
     + '</svg>';
+  el.querySelectorAll('[data-sleep-range]').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      _sleepTrendRange = btn.dataset.sleepRange;
+      saveJSON('lifeos_sleep_trend_range', _sleepTrendRange);
+      renderSleepTrend();
+    });
+  });
 }
 
 // ---- 周期卡：记开始日 + 算规律 ----
@@ -12202,4 +12307,144 @@ function initSprint5() {
   // 表单内按回车也不允许触发默认提交（会刷新页面清掉解析结果）
   var watchForm = document.getElementById('watch-import-form');
   if (watchForm) watchForm.addEventListener('submit', function(e) { e.preventDefault(); });
+}
+
+// ============================================================
+// Sprint 6：照片附件（IndexedDB，不占 localStorage 的 5MB）
+// ============================================================
+var _photoDB = null;
+
+function photoDB() {
+  return new Promise(function(resolve, reject) {
+    if (_photoDB) return resolve(_photoDB);
+    try {
+      var req = indexedDB.open('lifeos_photos', 1);
+      req.onupgradeneeded = function(e) {
+        var db = e.target.result;
+        if (!db.objectStoreNames.contains('photos')) {
+          db.createObjectStore('photos', { keyPath: 'id' });
+        }
+      };
+      req.onsuccess = function(e) { _photoDB = e.target.result; resolve(_photoDB); };
+      req.onerror = function(e) { reject(req.error); };
+    } catch (err) { reject(err); }
+  });
+}
+
+function photoPut(id, blob) {
+  return photoDB().then(function(db) {
+    return new Promise(function(resolve, reject) {
+      var tx = db.transaction('photos', 'readwrite');
+      tx.objectStore('photos').put({ id: id, blob: blob, createdAt: new Date().toISOString() });
+      tx.oncomplete = function() { resolve(id); };
+      tx.onerror = function() { reject(tx.error); };
+    });
+  }).catch(function(err) {
+    console.warn('photoPut failed:', err);
+    return null;
+  });
+}
+
+function photoGet(id) {
+  return photoDB().then(function(db) {
+    return new Promise(function(resolve, reject) {
+      var tx = db.transaction('photos', 'readonly');
+      var req = tx.objectStore('photos').get(id);
+      req.onsuccess = function() { resolve(req.result ? req.result.blob : null); };
+      req.onerror = function() { reject(req.error); };
+    });
+  });
+}
+
+function photoDelete(id) {
+  return photoDB().then(function(db) {
+    return new Promise(function(resolve) {
+      var tx = db.transaction('photos', 'readwrite');
+      tx.objectStore('photos').delete(id);
+      tx.oncomplete = function() { resolve(true); };
+      tx.onerror = function() { resolve(false); };
+    });
+  });
+}
+
+function photoGetURL(id) {
+  return photoGet(id).then(function(blob) {
+    return blob ? URL.createObjectURL(blob) : null;
+  });
+}
+
+// ---- 写一笔弹窗里的待提交照片 ----
+var _ctPendingPhotos = []; // [{id, blob, url}]
+
+function _ctResetPhotos() {
+  _ctPendingPhotos.forEach(function(p) { URL.revokeObjectURL(p.url); });
+  _ctPendingPhotos = [];
+  _ctRenderPendingPhotos();
+}
+
+function _ctRenderPendingPhotos() {
+  var box = document.getElementById('ct-photo-thumbs');
+  var hint = document.getElementById('ct-photo-hint');
+  if (!box) return;
+  box.innerHTML = _ctPendingPhotos.map(function(p, i) {
+    return '<span class="ct-photo-item">'
+      + '<img class="cc-photo-thumb" src="' + p.url + '" alt="待提交照片">'
+      + '<button type="button" class="ct-photo-item__del" data-ct-photo-del="' + i + '" aria-label="移除">×</button>'
+      + '</span>';
+  }).join('');
+  if (hint) hint.hidden = _ctPendingPhotos.length === 0;
+  box.querySelectorAll('[data-ct-photo-del]').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var idx = parseInt(btn.dataset.ctPhotoDel, 10);
+      if (_ctPendingPhotos[idx]) {
+        URL.revokeObjectURL(_ctPendingPhotos[idx].url);
+        _ctPendingPhotos.splice(idx, 1);
+      }
+      _ctRenderPendingPhotos();
+    });
+  });
+}
+
+function _ctAddPhotos(files) {
+  var added = 0;
+  Array.prototype.slice.call(files).forEach(function(f) {
+    if (!f.type || f.type.indexOf('image/') !== 0) return;
+    if (_ctPendingPhotos.length >= 6) return; // 一笔最多 6 张，够用且防误传
+    _ctPendingPhotos.push({ id: 'ph_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8), blob: f, url: URL.createObjectURL(f) });
+    added++;
+  });
+  if (added > 0) _ctRenderPendingPhotos();
+  else if (files && files.length) showToast('只认图片，一笔最多 6 张', 'warning');
+}
+
+// ---- 大图查看器 ----
+function openPhotoViewer(url) {
+  var viewer = document.createElement('div');
+  viewer.className = 'cc-photo-viewer';
+  viewer.innerHTML = '<img src="' + url + '" alt="照片">'
+    + '<p class="cc-photo-viewer__hint">点任意处关闭</p>';
+  viewer.addEventListener('click', function() { viewer.remove(); });
+  document.body.appendChild(viewer);
+}
+
+// ---- Sprint 6 初始化 ----
+function initSprint6() {
+  // 写一笔弹窗：选照片
+  var photoBtn = document.getElementById('ct-photo-btn');
+  var photoInput = document.getElementById('ct-photo-input');
+  if (photoBtn && photoInput) {
+    photoBtn.addEventListener('click', function() { photoInput.click(); });
+    photoInput.addEventListener('change', function() {
+      _ctAddPhotos(photoInput.files);
+      photoInput.value = '';
+    });
+  }
+  // 点缩略图看大图（看板 + 弹窗都走事件冒泡）
+  document.addEventListener('click', function(e) {
+    var thumb = e.target.closest('img[data-cc-photo]');
+    if (thumb && thumb.src) {
+      e.preventDefault();
+      openPhotoViewer(thumb.src);
+    }
+  });
 }

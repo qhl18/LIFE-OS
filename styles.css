@@ -6605,7 +6605,7 @@ body.has-photo .bg-glow {
 /* ---- 横向滑动 ---- */
 .quad-swipe {
   display: flex;
-  overflow-x: auto;
+  overflow: auto; /* Sprint 6：纵向内容超高时可滚，不被 quad-panel 的 overflow:hidden 裁掉 */
   scroll-snap-type: x mandatory;
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
@@ -8336,4 +8336,130 @@ body.has-photo .bg-glow {
   display: flex;
   gap: var(--s-2);
   justify-content: flex-end;
+}
+
+/* ============================================================
+   Sprint 6：趋势 周/月周期切换 + 照片附件
+   ============================================================ */
+.trend-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-2);
+  margin-bottom: var(--s-1);
+}
+.trend-head .section-title,
+.trend-head .sleep-trend__title,
+.trend-head .fin-cats__title {
+  margin: 0;
+}
+.range-toggle {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  flex-shrink: 0;
+}
+.range-toggle__pill {
+  border: none;
+  background: transparent;
+  color: var(--t-2, rgba(255, 255, 255, 0.55));
+  font-size: 0.72rem;
+  line-height: 1;
+  padding: 4px 10px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
+}
+.range-toggle__pill:hover {
+  color: var(--t-1, rgba(255, 255, 255, 0.85));
+}
+.range-toggle__pill.is-active {
+  background: var(--c-accent, #d4af37);
+  color: #14100a;
+  font-weight: 600;
+}
+
+/* 照片附件（自定义卡片记录） */
+.cc-photo-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--t-2, rgba(255, 255, 255, 0.7));
+  border-radius: 8px;
+  font-size: 0.75rem;
+  padding: 5px 10px;
+  cursor: pointer;
+}
+.cc-photo-btn:hover {
+  color: var(--t-1, rgba(255, 255, 255, 0.9));
+  border-color: rgba(255, 255, 255, 0.3);
+}
+.cc-photo-thumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+.cc-photo-thumb {
+  width: 44px;
+  height: 44px;
+  border-radius: 6px;
+  object-fit: cover;
+  cursor: zoom-in;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+.cc-photo-viewer {
+  position: fixed;
+  inset: 0;
+  z-index: 600;
+  background: rgba(0, 0, 0, 0.88);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-3);
+  padding: var(--s-4);
+}
+.cc-photo-viewer img {
+  max-width: 92vw;
+  max-height: 78vh;
+  border-radius: 8px;
+}
+.cc-photo-viewer__hint {
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 0.78rem;
+}
+.ct-photo-item {
+  position: relative;
+  display: inline-block;
+}
+.ct-photo-item__del {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(0, 0, 0, 0.65);
+  color: #fff;
+  font-size: 12px;
+  line-height: 18px;
+  padding: 0;
+  cursor: pointer;
+}
+.cc-photo-more {
+  width: 44px;
+  height: 44px;
+  border-radius: 6px;
+  border: 1px dashed rgba(255, 255, 255, 0.2);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  color: var(--t-2, rgba(255, 255, 255, 0.55));
 }
