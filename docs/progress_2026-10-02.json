@@ -1,0 +1,34 @@
+{
+  "date": "2026-10-02",
+  "phase": "阶段一 · Sprint 7 收官",
+  "sprint": 7,
+  "sprint7_features": {
+    "destress_8": {
+      "bad_sleep_layout": "睡眠差夜→今日屏折叠+重排（shouldFoldToday/shouldReorderToday/applyStressLayout）",
+      "cycle_rest_days": "周期卡休息日（getRestDaySet/cycleRestDaysForCard）",
+      "goal_suggestion": "落后目标鼓励建议（getBehindGoal/renderGoalSuggestion）",
+      "auto_postpone": "跨天自动顺延未完成项（autoPostponeItems/_schedulePostponeTimer）",
+      "counter_thresholds": "计数阈值提醒（checkCounterThresholds）",
+      "status": "done"
+    },
+    "copy_engine_19": {
+      "checkin_response": "打卡回应文案（copyCheckinResponse：连续7天/30天/100天/断7天回归/首次），已接入 doCheckin",
+      "sensitive_card": "敏感卡片回应（sensitiveCardRespond）",
+      "midnight_care": "深夜关怀（maybeAskMidnight/_scheduleMidnightTimer）",
+      "open_moment": "开屏文案（checkOpenMomentCopy）",
+      "reports": "周报/月报一键复制（copySundayReport/copyMonthReport）",
+      "toast": "copyToast 统一出口（带 undo）",
+      "status": "done"
+    }
+  },
+  "tests": {
+    "sprint6_regression": "24/24 通过（test_sprint6.js）",
+    "sprint7_smoke": "19/19 通过（test_sprint7_smoke.js，函数挂载+核心行为无报错）"
+  },
+  "commit": "85acf4b",
+  "remaining": [
+    "课程表批量导入：等用户提供课表文本",
+    "git push：网络重置待推（累计 11 个 commit）",
+    "阶段二：PWA / OCR / 云备份（等用户开跑）"
+  ]
+}
