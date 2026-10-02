@@ -1,0 +1,49 @@
+{
+  "date": "2026-10-02",
+  "phase": "阶段二 · Sprint 8 收官",
+  "sprint": 8,
+  "sprint8_features": {
+    "factory_reset": {
+      "entry": "设置 → 恢复出厂 → 清空全部数据",
+      "flow": "confirm 确认 → 自动导出 JSON 备份留底 → 清全部 lifeos_* localStorage → 删 IndexedDB lifeos_photos → 清 SW/缓存 → 重载",
+      "status": "done"
+    },
+    "table_import": {
+      "sources": "Excel(.xlsx/.xls) / CSV / 直接粘贴表格（TSV/CSV）",
+      "engine": "SheetJS 内置本地 js/vendor/xlsx.full.min.js（881KB）",
+      "flow": "解析 → 自动列映射（可手改）→ 预览表格 → 逐行勾选 → 落库 lifeos_schedule（weekly+days）",
+      "rules": "缺星期或名称的行自动禁用；多星期（一,三,五）展开为多条；地点并入名称",
+      "entry": "今日板块日程管理 → 从表格导入",
+      "status": "done"
+    },
+    "ocr_semiauto": {
+      "entry": "手环粘贴弹窗 → 从截图识别（半自动）",
+      "engine": "Tesseract.js 5.1.1 全本地（主库+worker+wasm核心+chi_sim 20MB 语言包，js/vendor/）",
+      "flow": "选图 → 本地识别 → 文本预填粘贴框 → 用户核对改错 → 点先认一认 → 确认落库",
+      "privacy": "图片不出浏览器，零上传",
+      "status": "done"
+    },
+    "pwa_desktop": {
+      "files": "manifest.webmanifest / sw.js（离线缓存 v8）/ 4 个图标（黑金四宫格）",
+      "sw_scope": "只在 http(s)/localhost 注册，file:// 静默跳过",
+      "launcher": "启动LifeOS.bat（起 8765 服务并开浏览器）",
+      "status": "done"
+    },
+    "git_push_guide": "git-push小抄.md（四步操作 + PAT 令牌 + 代理配置）"
+  },
+  "tests": {
+    "sprint8": "30/30 通过（test_sprint8.js：恢复出厂安全/解析层 8 项/导入全流程/引擎文件/库加载/PWA）",
+    "sprint6_regression": "24/24 通过，零回归"
+  },
+  "commit": "479313d",
+  "user_todo": [
+    "按 git-push小抄.md 学 push（累计 13 个 commit 待推）",
+    "用启动LifeOS.bat 打开 → 浏览器地址栏右侧安装图标 → 装成桌面 App",
+    "在网页里自己点「清空全部数据」完成新用户体验（会自动留备份）",
+    "体验课表导入 / 手环截图 OCR，格式不对的反馈给 AI 调解析规则"
+  ],
+  "remaining": [
+    "云备份 / 账号体系：阶段三，等用户拍板",
+    "手机端 PWA：暂不考虑（用户决定）"
+  ]
+}
