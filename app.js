@@ -9487,6 +9487,7 @@ function init() {
     initSprint5();
     initSprint6();
     initSprint7();
+    initSprint8();
     return;
   }
 
@@ -9507,6 +9508,7 @@ function init() {
   initSprint5();
   initSprint6();
   initSprint7();
+  initSprint8();
 }
 
 function bindBasicInteractions() {
@@ -12075,6 +12077,45 @@ function exportBackup() {
   showToast('备份已导出（' + payload.keys + ' 项数据），记得放安全的地方', 'success');
 }
 
+// 4b) 恢复出厂：先自动导一份备份，再清全部 lifeos_* + IndexedDB 照片库
+// ============================================================
+function factoryReset() {
+  var keys = [];
+  for (var i = 0; i < localStorage.length; i++) {
+    var k = localStorage.key(i);
+    if (k && k.indexOf('lifeos_') === 0) keys.push(k);
+  }
+  var photos = 0;
+  var ok = window.confirm(
+    '这会清空这台设备上的全部 LifeOS 数据：\n\n'
+    + '· ' + keys.length + ' 项记录（目标 / 打卡 / 睡眠 / 存款 / 课表 / 复盘 …）\n'
+    + '· 全部照片附件\n\n'
+    + '清空前会自动导出一份备份文件到下载文件夹。\n'
+    + '确定要回到出厂状态吗？'
+  );
+  if (!ok) return;
+  // 1) 自动备份留底
+  try { exportBackup(); } catch (e) { /* 备份失败也继续，用户已确认 */ }
+  // 2) 清 localStorage
+  keys.forEach(function(k) { localStorage.removeItem(k); });
+  // 3) 删 IndexedDB 照片库
+  try {
+    indexedDB.deleteDatabase('lifeos_photos').onsuccess = function() { photos = 1; };
+  } catch (e) { /* 忽略：库不存在 */ }
+  // 4) 清缓存并重载
+  if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+    navigator.serviceWorker.getRegistrations().then(function(regs) {
+      regs.forEach(function(r) { r.unregister(); });
+    }).catch(function() {});
+  }
+  if (window.caches && caches.keys) {
+    caches.keys().then(function(names) {
+      names.forEach(function(n) { caches.delete(n); });
+    }).catch(function() {});
+  }
+  setTimeout(function() { location.reload(); }, 1200);
+}
+
 function importBackupFile(file) {
   var reader = new FileReader();
   reader.onload = function() {
@@ -12353,6 +12394,10 @@ function initSprint5() {
       fileInput.value = '';
     });
   }
+
+  // 恢复出厂
+  var factoryBtn = document.getElementById('factory-reset-btn');
+  if (factoryBtn) factoryBtn.addEventListener('click', factoryReset);
 
   // 手环粘贴
   var watchBtn = document.getElementById('watch-btn');
@@ -13034,4 +13079,419 @@ function checkOpenMomentCopy() {
   copySundayReport();
   copyMonthReport();
   maybeAskMidnight();
+}
+
+// ============================================================
+// Sprint 8：表格导入（Excel / CSV / 粘贴）→ 预览确认 → 课表落库
+// 铁律：必须预览、逐条勾选确认，绝不盲写；解析失败不落库
+// ============================================================
+var _timportRows = null;      // 二维数组（原始数据，可能含表头行）
+var _timportHasHeader = false;
+var _timportMapping = [];     // 每列映射的目标字段：day/start/end/title/place/''
+var _TIMPORT_FIELDS = [
+  { key: '',        label: '忽略' },
+  { key: 'day',     label: '星期' },
+  { key: 'start',   label: '开始时间' },
+  { key: 'end',     label: '结束时间' },
+  { key: 'title',   label: '课程 / 名称' },
+  { key: 'place',   label: '地点（并入名称）' }
+];
+
+// 惰性加载本地 vendor 脚本（SheetJS）
+var _scriptLoads = {};
+function loadScriptOnce(url) {
+  if (!_scriptLoads[url]) {
+    _scriptLoads[url] = new Promise(function(resolve, reject) {
+      var s = document.createElement('script');
+      s.src = url;
+      s.onload = resolve;
+      s.onerror = function() { delete _scriptLoads[url]; reject(new Error('加载失败：' + url)); };
+      document.head.appendChild(s);
+    });
+  }
+  return _scriptLoads[url];
+}
+
+// ---- 文本表格解析（引号感知的 CSV / TSV）----
+function _timportSplitLine(line, delim) {
+  var out = [], cur = '', inQ = false;
+  for (var i = 0; i < line.length; i++) {
+    var ch = line[i];
+    if (inQ) {
+      if (ch === '"') {
+        if (line[i + 1] === '"') { cur += '"'; i++; }
+        else inQ = false;
+      } else cur += ch;
+    } else {
+      if (ch === '"') inQ = true;
+      else if (ch === delim) { out.push(cur.trim()); cur = ''; }
+      else cur += ch;
+    }
+  }
+  out.push(cur.trim());
+  return out;
+}
+
+function _timportParseText(text) {
+  var lines = String(text || '').replace(/\r\n?/g, '\n').split('\n').filter(function(l) { return l.trim() !== ''; });
+  if (!lines.length) return [];
+  var delim = '\t';
+  if (lines[0].indexOf('\t') === -1) {
+    var commas = (lines[0].match(/,/g) || []).length;
+    var semis = (lines[0].match(/;/g) || []).length;
+    delim = semis > commas ? ';' : ',';
+  }
+  return lines.map(function(l) { return _timportSplitLine(l, delim); });
+}
+
+// ---- 字段值解析 ----
+// 星期 → [1..7]（支持 一/1/周一/星期一/"一,三,五"/"每周三"）
+function _timportParseDays(str) {
+  if (str == null) return [];
+  var MAP = { '一': 1, '二': 2, '三': 3, '四': 4, '五': 5, '六': 6, '日': 7, '天': 7, '末': 6 };
+  var out = [], m;
+  var re = /[一二三四五六日天末]|[1-7]/g;
+  var s = String(str).replace(/周/g, ' ').replace(/星期/g, ' ').replace(/每/g, ' ').replace(/week/i, ' ');
+  while ((m = re.exec(s))) {
+    var d = MAP[m[0]] != null ? MAP[m[0]] : parseInt(m[0], 10);
+    if (d >= 1 && d <= 7 && out.indexOf(d) === -1) out.push(d);
+  }
+  return out;
+}
+
+// 时间 → "HH:MM"；支持 "8:00" / "08:00" / "8点"；无钟点（如"第3节"）返回 null
+function _timportParseTime(str) {
+  if (str == null) return null;
+  var m = String(str).match(/(\d{1,2})\s*[:：点时]\s*(\d{1,2})?/);
+  if (!m) return null;
+  var h = parseInt(m[1], 10), mi = m[2] ? parseInt(m[2], 10) : 0;
+  if (h > 23 || mi > 59) return null;
+  return String(h).padStart(2, '0') + ':' + String(mi).padStart(2, '0');
+}
+
+// "8:00-9:40" 这类区间 → {start, end}
+function _timportParseRange(str) {
+  if (str == null) return { start: null, end: null };
+  var s = String(str);
+  var times = [];
+  var re = /(\d{1,2})\s*[:：点时]\s*(\d{1,2})?/g, m;
+  while ((m = re.exec(s))) {
+    var h = parseInt(m[1], 10), mi = m[2] ? parseInt(m[2], 10) : 0;
+    if (h <= 23 && mi <= 59) times.push(String(h).padStart(2, '0') + ':' + String(mi).padStart(2, '0'));
+  }
+  if (times.length >= 2) return { start: times[0], end: times[times.length - 1] };
+  if (times.length === 1) return { start: times[0], end: null };
+  return { start: null, end: null };
+}
+
+// ---- 自动列映射 ----
+var _TIMPORT_HEADER_HINTS = {
+  day:   /星期|周[一二三四五六日天]?$|周几|weekday/i,
+  start: /开始|上课|时间|起始|从/,
+  end:   /结束|下课|到|止/,
+  title: /课程|名称|事项|课名|内容|标题|事件|科目/,
+  place: /地点|教室|位置|场所/
+};
+
+function _timportAutoMap(rows) {
+  var cols = 0;
+  rows.forEach(function(r) { if (r.length > cols) cols = r.length; });
+  var mapping = new Array(cols).fill('');
+  var first = rows[0] || [];
+  var headerHit = false;
+  // 1) 先看首行是否表头
+  for (var c = 0; c < cols; c++) {
+    var cell = String(first[c] == null ? '' : first[c]).trim();
+    Object.keys(_TIMPORT_HEADER_HINTS).forEach(function(f) {
+      if (!mapping[c] && cell && _TIMPORT_HEADER_HINTS[f].test(cell)) {
+        mapping[c] = f;
+        headerHit = true;
+      }
+    });
+  }
+  if (headerHit) {
+    // 表头存在但没匹配到名称列 → 挑最像名称的一列
+    if (mapping.indexOf('title') === -1) {
+      for (var c2 = 0; c2 < cols; c2++) {
+        if (!mapping[c2] && String(first[c2] || '').trim() && !/\d/.test(String(first[c2]))) { mapping[c2] = 'title'; break; }
+      }
+    }
+    return { hasHeader: true, mapping: mapping };
+  }
+  // 2) 无表头：按内容猜
+  var sample = rows.slice(0, 8);
+  for (var c3 = 0; c3 < cols; c3++) {
+    var vals = sample.map(function(r) { return String(r[c3] == null ? '' : r[c3]).trim(); }).filter(Boolean);
+    if (!vals.length) continue;
+    if (!mapping.day && vals.some(function(v) { return _timportParseDays(v).length && v.replace(/[周星期一二三四五六日天末每1-7,，、\s]/g, '').length === 0; })) { mapping[c3] = 'day'; continue; }
+    if (!mapping.title && vals.every(function(v) { return !/^\d+([:.：\-~]\d+)*$/.test(v); }) && !mapping[c3]) { mapping[c3] = 'title'; continue; }
+  }
+  for (var c4 = 0; c4 < cols; c4++) {
+    if (mapping[c4]) continue;
+    var vals2 = sample.map(function(r) { return String(r[c4] == null ? '' : r[c4]).trim(); }).filter(Boolean);
+    if (!vals2.length) continue;
+    if (vals2.some(function(v) { return /\d{1,2}[:：点时]/.test(v); })) { mapping[c4] = !mapping.start ? 'start' : (!mapping.end ? 'end' : ''); }
+  }
+  return { hasHeader: false, mapping: mapping };
+}
+
+// ---- 行 → 课表条目 ----
+function _timportBuildItems(rows, mapping, hasHeader) {
+  var dataRows = hasHeader ? rows.slice(1) : rows;
+  return dataRows.map(function(r) {
+    var rec = { days: [], start: null, end: null, title: '', place: '' };
+    mapping.forEach(function(f, c) {
+      var v = r[c] == null ? '' : String(r[c]).trim();
+      if (!v || !f) return;
+      if (f === 'day') rec.days = rec.days.concat(_timportParseDays(v));
+      else if (f === 'start') { var rg = _timportParseRange(v); rec.start = rec.start || rg.start; rec.end = rec.end || rg.end; }
+      else if (f === 'end') rec.end = rec.end || _timportParseTime(v);
+      else if (f === 'title') rec.title = rec.title || v;
+      else if (f === 'place') rec.place = rec.place || v;
+    });
+    rec.ok = rec.days.length > 0 && !!rec.title;
+    rec.raw = r;
+    return rec;
+  });
+}
+
+// ---- 预览渲染 ----
+function _timportShowPreview() {
+  var items = _timportBuildItems(_timportRows, _timportMapping, _timportHasHeader);
+  var okCount = items.filter(function(x) { return x.ok; }).length;
+  document.getElementById('timport-summary').textContent =
+    '认出 ' + items.length + ' 行，其中 ' + okCount + ' 行可直接导入（有星期、有名称）。勾选的才会写入。';
+  var mapEl = document.getElementById('timport-mapping');
+  var mapHtml = '<div class="timport-map-row">';
+  for (var c = 0; c < _timportMapping.length; c++) {
+    mapHtml += '<select class="timport-map-select" data-col="' + c + '">' +
+      _TIMPORT_FIELDS.map(function(f) {
+        return '<option value="' + f.key + '"' + (_timportMapping[c] === f.key ? ' selected' : '') + '>' + (f.key === '' ? '忽略' : f.key + '：' + f.label) + '</option>';
+      }).join('') + '</select>';
+  }
+  mapEl.innerHTML = mapHtml + '</div>' +
+    '<p class="timport-map-hint">每一列当什么用，自动猜的不对就手动改，预览会跟着变。</p>';
+  var html = '<thead><tr><th></th>' +
+    (_timportHasHeader ? _timportRows[0].map(function(h) { return '<th>' + h + '</th>'; }).join('') : '') +
+    '<th>导入为</th></tr></thead><tbody>';
+  items.forEach(function(it, i) {
+    var preview = it.ok
+      ? '周' + it.days.join('、周') + (it.start ? ' ' + it.start : '') + (it.end ? '-' + it.end : '') + ' · ' + it.title + (it.place ? '（' + it.place + '）' : '')
+      : '缺' + (!it.days.length ? '星期' : '') + (!it.days.length && !it.title ? '和' : '') + (!it.title ? '名称' : '') + '，跳过';
+    html += '<tr' + (it.ok ? '' : ' class="timport-row--bad"') + '>' +
+      '<td><input type="checkbox" class="timport-check" data-idx="' + i + '"' + (it.ok ? ' checked' : ' disabled') + '></td>' +
+      it.raw.map(function(v) { return '<td>' + (v == null ? '' : String(v)) + '</td>'; }).join('') +
+      '<td class="timport-preview-cell">' + preview + '</td></tr>';
+  });
+  html += '</tbody>';
+  document.getElementById('timport-table').innerHTML = html;
+  document.getElementById('timport-source').hidden = true;
+  document.getElementById('timport-preview').hidden = false;
+}
+
+// ---- 落库 ----
+function _timportApply() {
+  var items = _timportBuildItems(_timportRows, _timportMapping, _timportHasHeader);
+  var picked = [];
+  document.querySelectorAll('.timport-check').forEach(function(cb) {
+    if (cb.checked) picked.push(items[parseInt(cb.dataset.idx, 10)]);
+  });
+  if (!picked.length) {
+    document.getElementById('timport-error').textContent = '一条都没勾。';
+    return;
+  }
+  var schedule = loadSchedule();
+  var added = 0;
+  picked.forEach(function(it) {
+    it.days.forEach(function(d) {
+      schedule.push({
+        id: uuid(),
+        title: it.title + (it.place ? '（' + it.place + '）' : ''),
+        time: it.start || '',
+        endTime: it.end || '',
+        repeat: 'weekly',
+        days: [d],
+        date: '',
+        goalId: null
+      });
+      added++;
+    });
+  });
+  saveSchedule(schedule);
+  var modal = document.getElementById('table-import-modal');
+  if (modal) modal.hidden = true;
+  if (typeof renderTodayBoard === 'function') renderTodayBoard();
+  copyToast('导入了 ' + added + ' 条课');
+}
+
+// ---- 入口 ----
+function openTableImportModal() {
+  var modal = document.getElementById('table-import-modal');
+  if (!modal) return;
+  _timportRows = null;
+  document.getElementById('timport-paste').value = '';
+  document.getElementById('timport-error').textContent = '';
+  document.getElementById('timport-file-input').value = '';
+  document.getElementById('timport-source').hidden = false;
+  document.getElementById('timport-preview').hidden = true;
+  openModal(modal);
+}
+
+function _timportHandleRows(rows) {
+  if (!rows || rows.length === 0) {
+    document.getElementById('timport-error').textContent = '没读出任何行。';
+    return;
+  }
+  _timportRows = rows;
+  var auto = _timportAutoMap(rows);
+  _timportHasHeader = auto.hasHeader;
+  _timportMapping = auto.mapping;
+  document.getElementById('timport-error').textContent = '';
+  _timportShowPreview();
+}
+
+function initSprint8() {
+  var modal = document.getElementById('table-import-modal');
+  if (!modal) return;
+
+  var entryBtn = document.getElementById('schedule-import-btn');
+  if (entryBtn) entryBtn.addEventListener('click', function() {
+    var manage = document.getElementById('schedule-manage-modal');
+    if (manage) manage.hidden = true;
+    openTableImportModal();
+  });
+
+  modal.querySelectorAll('[data-close-timport]').forEach(function(el) {
+    el.addEventListener('click', function() { modal.hidden = true; });
+  });
+
+  var fileBtn = document.getElementById('timport-file-btn');
+  var fileInput = document.getElementById('timport-file-input');
+  if (fileBtn && fileInput) {
+    fileBtn.addEventListener('click', function() { fileInput.click(); });
+    fileInput.addEventListener('change', function() {
+      var f = fileInput.files && fileInput.files[0];
+      if (!f) return;
+      var name = f.name.toLowerCase();
+      if (/\.csv$/.test(name)) {
+        var reader = new FileReader();
+        reader.onload = function() { _timportHandleRows(_timportParseText(reader.result)); };
+        reader.readAsText(f, 'utf-8');
+      } else if (/\.xlsx?$/.test(name)) {
+        loadScriptOnce('js/vendor/xlsx.full.min.js').then(function() {
+          var reader = new FileReader();
+          reader.onload = function() {
+            try {
+              var wb = XLSX.read(reader.result, { type: 'array' });
+              var sheet = wb.Sheets[wb.SheetNames[0]];
+              var rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+              _timportHandleRows(rows);
+            } catch (e) {
+              document.getElementById('timport-error').textContent = 'Excel 读不出来：' + e.message;
+            }
+          };
+          reader.readAsArrayBuffer(f);
+        }).catch(function() {
+          document.getElementById('timport-error').textContent = 'Excel 引擎加载失败（js/vendor/xlsx.full.min.js 缺失？）';
+        });
+      } else {
+        document.getElementById('timport-error').textContent = '只支持 .xlsx / .xls / .csv';
+      }
+      fileInput.value = '';
+    });
+  }
+
+  var parseBtn = document.getElementById('timport-parse-btn');
+  if (parseBtn) parseBtn.addEventListener('click', function() {
+    var text = document.getElementById('timport-paste').value;
+    if (!text.trim()) {
+      document.getElementById('timport-error').textContent = '先粘贴点东西，或选个文件。';
+      return;
+    }
+    _timportHandleRows(_timportParseText(text));
+  });
+
+  var backBtn = document.getElementById('timport-back-btn');
+  if (backBtn) backBtn.addEventListener('click', function() {
+    document.getElementById('timport-preview').hidden = true;
+    document.getElementById('timport-source').hidden = false;
+  });
+
+  var applyBtn = document.getElementById('timport-apply-btn');
+  if (applyBtn) applyBtn.addEventListener('click', _timportApply);
+
+  document.getElementById('timport-mapping').addEventListener('change', function(e) {
+    var sel = e.target.closest('.timport-map-select');
+    if (!sel) return;
+    _timportMapping[parseInt(sel.dataset.col, 10)] = sel.value;
+    _timportShowPreview();
+  });
+
+  // OCR 半自动（手环截图）
+  initWatchOcr();
+}
+
+// ============================================================
+// Sprint 8：OCR 半自动（睡眠截图 → 草稿 → 人工确认）
+// 引擎全部本地（js/vendor），图片不出浏览器
+// ============================================================
+var _ocrWorkerPromise = null;
+
+function _ocrGetWorker(statusEl) {
+  if (_ocrWorkerPromise) return _ocrWorkerPromise;
+  _ocrWorkerPromise = loadScriptOnce('js/vendor/tesseract.min.js').then(function() {
+    var worker = Tesseract.createWorker('chi_sim', 1, {
+      workerPath: 'js/vendor/tesseract-worker.min.js',
+      corePath: 'js/vendor',
+      langPath: 'js/vendor',
+      logger: function(m) {
+        if (statusEl && m && m.status) {
+          statusEl.textContent = (m.status === 'recognizing text'
+            ? '识别中… ' + Math.round((m.progress || 0) * 100) + '%'
+            : '引擎：' + m.status);
+        }
+      }
+    });
+    return worker;
+  }).catch(function(e) {
+    _ocrWorkerPromise = null;
+    throw e;
+  });
+  return _ocrWorkerPromise;
+}
+
+function watchOcrFromFile(file) {
+  var statusEl = document.getElementById('watch-ocr-status');
+  if (!statusEl) return;
+  if (!file || !/^image\//.test(file.type)) {
+    statusEl.textContent = '选一张图片（截图就行）。';
+    return;
+  }
+  statusEl.textContent = '第一次用要加载本地识别引擎（约 20 秒）…';
+  _ocrGetWorker(statusEl).then(function(worker) {
+    statusEl.textContent = '识别中…';
+    return worker.recognize(file);
+  }).then(function(res) {
+    var text = (res && res.data && res.data.text ? res.data.text : '').trim();
+    if (!text) {
+      statusEl.textContent = '没认出字来。这张图可能太糊，直接手打或粘贴也快。';
+      return;
+    }
+    document.getElementById('watch-input').value = text;
+    statusEl.textContent = '认出来了，已填进上面——请肉眼核对改错，再点「先认一认」。';
+    watchParseAndShow();
+  }).catch(function(e) {
+    statusEl.textContent = '识别失败：' + (e && e.message ? e.message : e);
+  });
+}
+
+function initWatchOcr() {
+  var btn = document.getElementById('watch-ocr-btn');
+  var input = document.getElementById('watch-ocr-input');
+  if (!btn || !input) return;
+  btn.addEventListener('click', function() { input.click(); });
+  input.addEventListener('change', function() {
+    if (input.files && input.files[0]) watchOcrFromFile(input.files[0]);
+    input.value = '';
+  });
 }

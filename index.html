@@ -4,6 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>LifeOS - 记录即存在</title>
+  <meta name="theme-color" content="#0d0d10">
+  <meta name="description" content="记录即存在——个人生命数据管理">
+  <link rel="manifest" href="manifest.webmanifest">
   <link rel="stylesheet" href="styles.css?v=20260927a">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1430,11 +1433,47 @@
         <div class="modal__title-row">
           <h2 class="modal__title">日程管理</h2>
           <div class="modal__title-actions">
+            <button type="button" class="btn btn--ghost btn--small" id="schedule-import-btn">从表格导入</button>
             <button type="button" class="btn btn--primary btn--small" id="schedule-add-another">＋ 新建</button>
           </div>
         </div>
         <div class="schedule-manage-list" id="schedule-manage-list">
           <!-- JS 渲染 -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Sprint 8：表格导入（Excel / CSV / 粘贴） -->
+    <div class="modal" id="table-import-modal" hidden>
+      <div class="modal__overlay" data-close-timport></div>
+      <div class="modal__panel">
+        <h2 class="modal__title">从表格导入课表</h2>
+        <p class="modal__hint">Excel 文件、CSV，或者从 Excel 里复制一块直接粘贴。先预览，你逐条勾选确认了才写入。</p>
+
+        <div id="timport-source">
+          <div class="set-section__btns">
+            <button type="button" class="btn btn--primary btn--small" id="timport-file-btn">选择 Excel / CSV 文件</button>
+            <input type="file" id="timport-file-input" accept=".xlsx,.xls,.csv" hidden>
+          </div>
+          <label class="field" style="margin-top:12px">
+            <span class="field__label">或粘贴表格（Excel 里复制后直接粘贴）</span>
+            <textarea id="timport-paste" class="field__input" rows="5" placeholder="星期&#9;时间&#9;课程&#9;地点&#10;周一&#9;08:00&#9;高数&#9;教一 101&#10;周三&#9;14:00&#9;英语"></textarea>
+          </label>
+          <div class="modal__actions">
+            <button type="button" class="btn btn--ghost" data-close-timport>取消</button>
+            <button type="button" class="btn btn--primary" id="timport-parse-btn">解析预览</button>
+          </div>
+        </div>
+
+        <div id="timport-preview" hidden>
+          <p class="modal__hint" id="timport-summary"></p>
+          <div class="timport-mapping" id="timport-mapping"></div>
+          <div class="timport-table-wrap"><table class="timport-table" id="timport-table"></table></div>
+          <p class="field__error" id="timport-error"></p>
+          <div class="modal__actions">
+            <button type="button" class="btn btn--ghost" id="timport-back-btn">上一步</button>
+            <button type="button" class="btn btn--primary" id="timport-apply-btn">导入勾选的条目</button>
+          </div>
         </div>
       </div>
     </div>
@@ -1824,6 +1863,15 @@
           </div>
         </div>
 
+        <!-- 恢复出厂 -->
+        <div class="set-section">
+          <p class="set-section__title">恢复出厂</p>
+          <p class="set-section__hint">清空这台设备上的全部记录、目标和照片，回到第一次打开的样子。清空前会自动导出一份备份，放在下载里。</p>
+          <div class="set-section__btns">
+            <button type="button" class="btn btn--danger-weak btn--small" id="factory-reset-btn">清空全部数据</button>
+          </div>
+        </div>
+
         <div class="modal__actions">
           <button type="button" class="btn btn--ghost" data-close-settings>关闭</button>
         </div>
@@ -1869,6 +1917,11 @@
             <span class="field__label">粘贴手环数据</span>
             <textarea id="watch-input" class="field__input" rows="5" placeholder="例如：&#10;入睡 23:40 · 醒来 07:10&#10;深睡 1小时32分 浅睡 5小时3分 清醒 12分钟&#10;午睡 25分钟"></textarea>
           </label>
+          <div class="watch-ocr-row">
+            <button type="button" class="btn btn--ghost btn--small" id="watch-ocr-btn">从截图识别（半自动）</button>
+            <input type="file" id="watch-ocr-input" accept="image/*" hidden>
+            <span class="watch-ocr-status" id="watch-ocr-status"></span>
+          </div>
           <p class="field__error" id="watch-import-error"></p>
           <p class="watch-result" id="watch-result" hidden></p>
           <div class="modal__actions">
@@ -2013,5 +2066,13 @@
   <script src="https://imgcache.qq.com/open/qcloud/cloudbase-js-sdk/1.7.2/cloudbase.full.js"></script>
   <script src="cloud.js?v=20260927a"></script>
   <script src="app.js?v=20260927a"></script>
+  <script>
+    // PWA service worker：只在 http(s) / localhost 注册，file:// 下静默不注册
+    if ('serviceWorker' in navigator && (window.location.protocol === 'https:' || window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+      navigator.serviceWorker.register('./sw.js').catch(function(err) {
+        console.log('SW 注册失败', err);
+      });
+    }
+  </script>
 </body>
 </html>

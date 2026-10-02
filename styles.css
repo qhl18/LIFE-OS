@@ -8544,3 +8544,81 @@ body.has-photo .bg-glow {
   font-size: 0.82rem;
   color: var(--t-1, rgba(255, 255, 255, 0.9));
 }
+
+/* ===== Sprint 8：表格导入 ===== */
+.timport-map-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.timport-map-select {
+  padding: 6px 8px;
+  font-family: var(--font);
+  font-size: 12px;
+  color: var(--t-1);
+  background-color: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm, 8px);
+  cursor: pointer;
+}
+.timport-map-select:focus {
+  outline: none;
+  border-color: var(--c-accent);
+}
+.timport-map-hint {
+  margin: 0 0 10px;
+  font-size: 12px;
+  color: var(--t-2);
+}
+.timport-table-wrap {
+  max-height: 320px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--r-sm, 8px);
+}
+.timport-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+.timport-table th,
+.timport-table td {
+  padding: 6px 8px;
+  text-align: left;
+  color: var(--t-1);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.timport-table th {
+  position: sticky;
+  top: 0;
+  background-color: var(--bg-modal);
+  color: var(--t-2);
+  font-weight: 500;
+}
+.timport-row--bad td {
+  color: var(--t-2);
+  opacity: 0.6;
+}
+.timport-preview-cell {
+  color: var(--c-accent) !important;
+}
+.timport-table input[type="checkbox"] {
+  accent-color: var(--c-accent);
+}
+
+/* ===== Sprint 8：OCR 截图识别 ===== */
+.watch-ocr-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+.watch-ocr-status {
+  font-size: 12px;
+  color: var(--t-2);
+}
