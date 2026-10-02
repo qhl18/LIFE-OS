@@ -427,19 +427,28 @@ function calcCompositeProgress(goal) {
 }
 
 // ---- 连续打卡 streak ----
+// Sprint 7 规则升级：从「不许断」改成「每周有一次断的资格」
+// 休息日（月经期窗口）额外豁免，不占用每周资格
 function calcStreak(checkins) {
   if (!checkins || checkins.length === 0) return 0;
   var daySet = {};
   checkins.forEach(function(c) { if (c.date) daySet[c.date] = true; });
+  var rest = getRestDaySet();
+  var fmt = function(d) { return formatDate(d.toISOString()); };
   var cursor = new Date();
   cursor.setHours(0,0,0,0);
-  if (!daySet[formatDate(cursor.toISOString())]) {
+  if (!daySet[fmt(cursor)] && !rest[fmt(cursor)]) {
     cursor.setDate(cursor.getDate() - 1);
   }
   var streak = 0;
-  while (daySet[formatDate(cursor.toISOString())]) {
-    streak++;
-    cursor.setDate(cursor.getDate() - 1);
+  var usedPass = {}; // 每周一次的断签豁免，不用不结转
+  while (true) {
+    var k = fmt(cursor);
+    if (daySet[k]) { streak++; cursor.setDate(cursor.getDate() - 1); continue; }
+    if (rest[k]) { cursor.setDate(cursor.getDate() - 1); continue; } // 休息日：断了不断
+    var wk = _s7WeekKey(cursor);
+    if (!usedPass[wk]) { usedPass[wk] = true; cursor.setDate(cursor.getDate() - 1); continue; }
+    break;
   }
   return streak;
 }
@@ -898,6 +907,9 @@ function quickCheckin(goalId, amount, btnEl) {
     tag: '',
   };
   if (!g.checkins) g.checkins = [];
+  // 文案规则：打卡前留档（当天首次打卡 / 断签天数判定用）
+  var prevLastDate = lastDate;
+  var hadTodayBefore = g.checkins.some(function(c) { return c.date === (checkin.date || todayKey()); });
   g.checkins.push(checkin);
   g.currentValue = (g.currentValue || 0) + amount;
 
@@ -928,34 +940,24 @@ function quickCheckin(goalId, amount, btnEl) {
 
   renderGoals();
 
-  // 弹鼓励语
-  if (justCompleted) {
-    showCompletionRitual(g);
-  } else if (isReturn) {
-    showToast('欢迎回来。中断是人之常情，回来就是本事', 'success', { duration: 4000 });
-  } else if (achievements.length > 0) {
-    showToast(achievements[0].text, 'success', { duration: 4000 });
-  } else {
-    showToast(randomEncourage(), 'success', {
-      undo: function() {
-        var gs2 = loadGoals();
-        var g2 = gs2.find(function(x) { return x.id === goalId; });
-        if (g2 && g2.checkins && g2.checkins.length > 0) {
-          var last = g2.checkins[g2.checkins.length - 1];
-          g2.currentValue = (g2.currentValue || 0) - (last.amount || 0);
-          if (g2.currentValue < 0) g2.currentValue = 0;
-          if (g2.completed && calcProgress(g2) < 1) {
-            g2.completed = false;
-            g2.completedDate = null;
-          }
-          g2.checkins.pop();
-          saveGoals(gs2);
-          invalidateProbCache(goalId);
-          renderGoals();
-        }
+  // 文案规则：打卡时刻（表序 3-5 里程碑 > 8 回归 > 2 打卡完成；表外一律沉默）
+  copyCheckinResponse(g, prevLastDate, hadTodayBefore, function() {
+    var gs2 = loadGoals();
+    var g2 = gs2.find(function(x) { return x.id === goalId; });
+    if (g2 && g2.checkins && g2.checkins.length > 0) {
+      var last = g2.checkins[g2.checkins.length - 1];
+      g2.currentValue = (g2.currentValue || 0) - (last.amount || 0);
+      if (g2.currentValue < 0) g2.currentValue = 0;
+      if (g2.completed && calcProgress(g2) < 1) {
+        g2.completed = false;
+        g2.completedDate = null;
       }
-    });
-  }
+      g2.checkins.pop();
+      saveGoals(gs2);
+      invalidateProbCache(goalId);
+      renderGoals();
+    }
+  });
 }
 
 // ---- 成就时刻检测 ----
@@ -2942,6 +2944,19 @@ function openGoalDetail(id) {
   // ---- 人话评语 ----
   html += '<div class="detail-comment">' + escapeHtml(comment) + '</div>';
 
+  // ---- 截止日（Sprint 7：压力模式下只显示日期，不显示天数）----
+  if (goal.deadline && !goal.completed) {
+    var _dl = new Date(goal.deadline);
+    var _dlStr = (_dl.getMonth() + 1) + '/' + _dl.getDate();
+    if (!isCountdownHidden()) {
+      var _cd = calcCountdown(goal.deadline);
+      var _dayTxt = _cd.overdue ? ('逾期 ' + _cd.days + ' 天') : ('还剩 ' + _cd.days + ' 天');
+      html += '<div class="detail-deadline">⏱ 截止 ' + _dlStr + ' · ' + _dayTxt + '</div>';
+    } else {
+      html += '<div class="detail-deadline">⏱ 截止 ' + _dlStr + '</div>';
+    }
+  }
+
   // ---- 断卡回归提示 ----
   if (isReturn) {
     html += '<div class="detail-return-banner">欢迎回来。中断是人之常情，回来就是本事</div>';
@@ -3693,6 +3708,9 @@ function doCheckin(goalId, amount, note, checkinDate, tag, syncDaily, extras) {
     extras: extras || null,
   };
   if (!g.checkins) g.checkins = [];
+  // 文案规则：打卡前留档（当天首次打卡 / 断签天数判定用）
+  var prevLastDate = lastDate;
+  var hadTodayBefore = g.checkins.some(function(c) { return c.date === (checkin.date || todayKey()); });
   g.checkins.push(checkin);
   g.currentValue = (g.currentValue || 0) + amount;
 
@@ -3814,6 +3832,9 @@ function doValueCheckin(goalId, newVal, note, checkinDate, tag, syncDaily, extra
     extras: extras || null,
   };
   if (!g.checkins) g.checkins = [];
+  // 文案规则：打卡前留档
+  var prevLastDate = getLastCheckinDate(g);
+  var hadTodayBefore = g.checkins.some(function(c) { return c.date === date; });
   g.checkins.push(checkin);
   g.currentValue = newVal;
 
@@ -8813,6 +8834,10 @@ function renderCustomPanel() {
         }
         statLine += '<div class="cc-cycle__now">' + info.nowText + '</div>';
         if (info.nextText) statLine += '<div class="cc-cycle__next">' + info.nextText + '</div>';
+        // Sprint 7：休息日窗口内，日期下多一个极小标记（不解释，看见了就懂）
+        if (cycleRestDaysForCard(c.id)[today]) {
+          statLine += '<div class="cc-cycle__restmark" title="休息日">🌙</div>';
+        }
         body = statLine
           + '<div class="cc-counter__actions">'
           + '<button type="button" class="cc-plus" data-cc-cycle="' + c.id + '">记开始日</button>'
@@ -9305,6 +9330,13 @@ function openCustomManage() {
       list.innerHTML = cards.map(function(c, idx) {
         var entries = customEntriesAll(c.id);
         var typeLabel = { counter: '计数', score: '打分', text: '文字', numeric: '数值', cycle: '周期' }[c.type] || '记录';
+        var thresholdHtml = '';
+        if (c.type === 'counter') {
+          // Sprint 7 细节8：计数卡提醒阈值，留空 = 不提醒（默认）
+          thresholdHtml = '<label class="cc-manage__threshold" title="今天记的数超过这个值才提醒，留空就是不提醒">'
+            + '<input type="number" min="1" step="1" data-cc-threshold="' + c.id + '" value="' + (c.remindThreshold != null ? c.remindThreshold : '') + '" placeholder="—">'
+            + '<span>超过提醒</span></label>';
+        }
         return '<div class=\"cc-manage__row\">'
           + '<span class=\"cc-manage__sort\">'
           + '<button type=\"button\" class=\"icon-btn\" data-cc-up=\"' + c.id + '\" aria-label=\"上移\" title=\"上移\"' + (idx === 0 ? ' disabled' : '') + '>↑</button>'
@@ -9312,10 +9344,24 @@ function openCustomManage() {
           + '</span>'
           + '<span class=\"cc-manage__name\">' + escapeHtml(c.name) + '</span>'
           + '<span class=\"cc-manage__type\">' + typeLabel + '</span>'
+          + thresholdHtml
           + '<span class=\"cc-manage__count\">' + entries.length + ' 条</span>'
           + '<button type=\"button\" class=\"icon-btn\" data-cc-del-mng=\"' + c.id + '\" aria-label=\"删\">×</button>'
           + '</div>';
       }).join('');
+      // Sprint 7：阈值输入即时保存
+      list.querySelectorAll('[data-cc-threshold]').forEach(function(inp) {
+        inp.addEventListener('change', function() {
+          var cards2 = loadCustomCards();
+          var card = null;
+          for (var i = 0; i < cards2.length; i++) { if (cards2[i].id === inp.dataset.ccThreshold) { card = cards2[i]; break; } }
+          if (!card) return;
+          var v = parseInt(inp.value, 10);
+          card.remindThreshold = (inp.value !== '' && !isNaN(v) && v > 0) ? v : null;
+          saveCustomCards(cards2);
+          showToast(card.remindThreshold ? '「' + card.name + '」记到 ' + card.remindThreshold + ' 以上会提醒' : '「' + card.name + '」不再提醒', 'success');
+        });
+      });
     }
   }
   openModal(modal);
@@ -9440,6 +9486,7 @@ function init() {
     initSprint4();
     initSprint5();
     initSprint6();
+    initSprint7();
     return;
   }
 
@@ -9459,6 +9506,7 @@ function init() {
   initSprint4();
   initSprint5();
   initSprint6();
+  initSprint7();
 }
 
 function bindBasicInteractions() {
@@ -11810,8 +11858,8 @@ function checkSmartReminders() {
       return;
     }
 
-    // c. 临期：deadline 7 天内且进度 < 70%
-    if (g.deadline) {
+    // c. 临期：deadline 7 天内且进度 < 70%（Sprint 7：压力模式下这条不弹——数字本身就是压力源）
+    if (g.deadline && !isCountdownHidden()) {
       var remain = daysBetween(new Date(), g.deadline);
       var pct = Math.round(calcProgress(g) * 100);
       if (remain >= 0 && remain <= 7 && pct < 70) {
@@ -11973,8 +12021,16 @@ function renderDeadlineAxis() {
     var pace = calcPace(g);
     var cls = 'dl-node' + (pace === 'red' ? ' dl-node--red' : pace === 'yellow' ? ' dl-node--yellow' : ' dl-node--green')
       + (days < 0 ? ' dl-node--over' : '');
+    // Sprint 7：压力模式下 tooltip 只显示名字和日期，天数藏起来
+    var tip = escapeHtml(g.name);
+    if (!isCountdownHidden()) {
+      tip += ' · ' + (days < 0 ? '逾期 ' + (-days) + ' 天' : '还剩 ' + days + ' 天');
+    } else {
+      var _dd = new Date(g.deadline);
+      tip += ' · ' + (_dd.getMonth() + 1) + '/' + _dd.getDate();
+    }
     return '<button type="button" class="' + cls + '" data-goal-go="' + g.id + '" style="left:' + pct + '%" '
-      + 'title="' + escapeHtml(g.name) + ' · ' + (days < 0 ? '逾期 ' + (-days) + ' 天' : '还剩 ' + days + ' 天') + '">'
+      + 'title="' + tip + '">'
       + '<span class="dl-node__dot"></span>'
       + '<span class="dl-node__label">' + escapeHtml(g.name.length > 6 ? g.name.slice(0, 6) + '…' : g.name) + '</span>'
       + '</button>';
@@ -12211,6 +12267,13 @@ function refreshSettingsUI() {
   var settings = loadSettingsS5();
   var toggle = document.getElementById('smart-reminder-toggle');
   if (toggle) toggle.classList.toggle('is-on', !!settings.smartReminders);
+  // Sprint 7：自动顺延（默认开）/ 深夜询问 / 记录后回应（默认关）
+  var apToggle = document.getElementById('autopostpone-toggle');
+  if (apToggle) apToggle.classList.toggle('is-on', settings.autoPostpone !== false);
+  var midToggle = document.getElementById('midnight-toggle');
+  if (midToggle) midToggle.classList.toggle('is-on', !!settings.midnightAsk);
+  var rrToggle = document.getElementById('record-respond-toggle');
+  if (rrToggle) rrToggle.classList.toggle('is-on', !!settings.recordRespond);
   // 看板锁状态
   var lock = loadAppLock();
   var hint = document.getElementById('applock-status-hint');
@@ -12447,4 +12510,528 @@ function initSprint6() {
       openPhotoViewer(thumb.src);
     }
   });
+}
+
+// ============================================================
+// Sprint 7 · 去压力化细节包（8 项）
+// 1 熬夜次日自动重排+折叠  2/3 压力模式隐藏倒计时数字
+// 4 月经期自动休息日  5 每周一次断签资格  6 23:30 自动顺延
+// 7 目标落后建议区块  8 计数卡提醒阈值
+// ============================================================
+
+// ---- 睡眠判定 ----
+// 睡不好：入睡在 00:30 之后（跨过午夜）或一晚总时长 < 6 小时
+function _s7ParseD(s) {
+  var p = String(s).split('-');
+  return new Date(parseInt(p[0], 10), parseInt(p[1], 10) - 1, parseInt(p[2], 10));
+}
+function isBadSleepNight(rec) {
+  if (!rec) return false;
+  var b = parseHM(rec.bedtime), w = parseHM(rec.waketime);
+  var late = b != null && b >= 30 && b < 6 * 60; // 00:30–05:59 入睡
+  var short = false;
+  if (b != null && w != null) {
+    var dur = w >= b ? (w - b) : (24 * 60 - b + w);
+    short = dur < 6 * 60;
+  }
+  return late || short;
+}
+// 连续睡不好的天数（记录日期必须逐日相连；最新一条须是昨天或今天）
+function consecutiveBadSleepDays() {
+  var recs = loadSleep().filter(function(r) { return r.date; }).sort(function(a, b) { return a.date < b.date ? 1 : -1; });
+  if (recs.length === 0) return 0;
+  var today = new Date(); today.setHours(0, 0, 0, 0);
+  var lastRec = _s7ParseD(recs[0].date);
+  var gap = Math.round((today - lastRec) / 86400000);
+  if (gap < 0 || gap > 1) return 0; // 最新记录太旧，不判断
+  var count = 0;
+  var cursor = new Date(lastRec);
+  for (var i = 0; i < recs.length; i++) {
+    if (recs[i].date !== formatDate(cursor.toISOString())) break; // 日期断了
+    if (!isBadSleepNight(recs[i])) break; // 睡好了，链条结束
+    count++;
+    cursor.setDate(cursor.getDate() - 1);
+  }
+  return count;
+}
+// 昨晚（最近一晚）睡不好
+function lastNightBadSleep() {
+  var recs = loadSleep().filter(function(r) { return r.date; }).sort(function(a, b) { return a.date < b.date ? 1 : -1; });
+  if (recs.length === 0) return false;
+  var today = new Date(); today.setHours(0, 0, 0, 0);
+  var gap = Math.round((today - _s7ParseD(recs[0].date)) / 86400000);
+  return gap >= 0 && gap <= 1 && isBadSleepNight(recs[0]);
+}
+
+// ---- 情绪判定（每日一句心情：高光5 转折4 平凡3 低谷2）----
+function moodLowStreak() {
+  var daily = loadDaily().filter(function(d) { return d.date; }).sort(function(a, b) { return a.date < b.date ? 1 : -1; });
+  if (daily.length === 0) return 0;
+  var SCORES = { highlight: 5, turning: 4, ordinary: 3, low: 2 };
+  var today = new Date(); today.setHours(0, 0, 0, 0);
+  var gap = Math.round((today - _s7ParseD(daily[0].date)) / 86400000);
+  if (gap > 3) return 0; // 最近一条太久远，不判断
+  var count = 0;
+  var cursor = new Date(_s7ParseD(daily[0].date));
+  for (var i = 0; i < daily.length; i++) {
+    if (daily[i].date !== formatDate(cursor.toISOString())) break;
+    var sc = SCORES[daily[i].mood];
+    if (sc == null || sc > 3) break;
+    count++;
+    cursor.setDate(cursor.getDate() - 1);
+  }
+  return count;
+}
+
+// ---- 压力模式 ----
+function isCountdownHidden() {
+  return consecutiveBadSleepDays() >= 3 || moodLowStreak() >= 3;
+}
+function shouldReorderToday() { return lastNightBadSleep(); }
+function shouldFoldToday() { return lastNightBadSleep() || moodLowStreak() >= 3; }
+
+// ---- 休息日（月经期窗口 + 预测前3天）：打卡断了不断 streak ----
+var _s7RestCache = null, _s7RestCacheDay = '';
+function cycleRestDaysForCard(cardId) {
+  var set = {};
+  var starts = customEntriesAll(cardId).filter(function(e) {
+    return e.kind === 'cycle' && e.date;
+  }).map(function(e) { return e.date; }).sort();
+  if (starts.length === 0) return set;
+  var PERIOD_DAYS = 5;
+  function mark(base, fromOff, toOff) {
+    for (var o = fromOff; o <= toOff; o++) {
+      var d = new Date(base); d.setDate(d.getDate() + o);
+      set[formatDate(d.toISOString())] = true;
+    }
+  }
+  // 已记录的经期：开始日起 5 天
+  starts.forEach(function(s) { mark(_s7ParseD(s), 0, PERIOD_DAYS - 1); });
+  // 有规律可算：预测日前 3 天 + 预测经期 5 天
+  if (starts.length >= 2) {
+    var avg = computeCycleInfo(starts).avg;
+    if (avg) {
+      var next = _s7ParseD(starts[starts.length - 1]);
+      next.setDate(next.getDate() + avg);
+      mark(next, -3, -1);
+      mark(next, 0, PERIOD_DAYS - 1);
+    }
+  }
+  return set;
+}
+function getRestDaySet() {
+  var today = todayKey();
+  if (_s7RestCache && _s7RestCacheDay === today) return _s7RestCache;
+  var set = {};
+  loadCustomCards().forEach(function(c) {
+    if (c.type !== 'cycle') return;
+    var s = cycleRestDaysForCard(c.id);
+    for (var k in s) set[k] = true;
+  });
+  _s7RestCache = set; _s7RestCacheDay = today;
+  return set;
+}
+
+// ---- ISO 周标识（每周一次断签资格用）----
+function _s7WeekKey(d) {
+  var t = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  var day = (t.getDay() + 6) % 7; // 0=周一
+  t.setDate(t.getDate() - day + 3); // 本周周四
+  var jan4 = new Date(t.getFullYear(), 0, 4);
+  var week = Math.ceil((((t - jan4) / 86400000) + ((jan4.getDay() + 6) % 7) + 1) / 7);
+  return t.getFullYear() + 'W' + week;
+}
+
+// ---- 日程优先级：历史完成率高、耗时短 → 靠前 ----
+function schedulePriorityScore(it) {
+  var all = loadCheckins();
+  var appeared = 0, done = 0;
+  for (var i = 1; i <= 14; i++) {
+    var d = new Date(); d.setDate(d.getDate() - i); d.setHours(0, 0, 0, 0);
+    var k = formatDate(d.toISOString());
+    if (scheduleAppearsOn(it, k)) {
+      appeared++;
+      if (all[k] && all[k][it.id]) done++;
+    }
+  }
+  var rate = appeared > 0 ? done / appeared : 0.5; // 没历史的新日程不惩罚
+  var b = parseHM(it.time), e = parseHM(it.endTime);
+  var dur = (b != null && e != null && e > b) ? (e - b) : 0;
+  return rate * 100 - dur * 0.15;
+}
+
+// ---- 熬夜次日：重排 + 折叠 + 一次性气泡 ----
+function applyStressLayout() {
+  var slide = document.getElementById('today-slide-list');
+  if (!slide) return;
+  var reorder = shouldReorderToday();
+  var fold = shouldFoldToday();
+  var pending = Array.prototype.slice.call(slide.querySelectorAll('.today-item:not(.today-item--checked)'));
+  if (pending.length === 0) return;
+
+  if (reorder && pending.length > 1) {
+    var schedule = loadSchedule();
+    var scores = {};
+    pending.forEach(function(el) {
+      var it = null;
+      for (var i = 0; i < schedule.length; i++) { if (schedule[i].id === el.dataset.itemId) { it = schedule[i]; break; } }
+      scores[el.dataset.itemId] = it ? schedulePriorityScore(it) : 0;
+    });
+    pending.sort(function(a, b) { return (scores[b.dataset.itemId] || 0) - (scores[a.dataset.itemId] || 0); });
+    // 找插入锚点：第一个非待办节点（已完成区/空态/操作行）
+    var anchor = null;
+    for (var n = 0; n < slide.children.length; n++) {
+      var ch = slide.children[n];
+      if (ch.classList.contains('today-item') && !ch.classList.contains('today-item--checked')) continue;
+      anchor = ch; break;
+    }
+    pending.forEach(function(el) {
+      if (anchor) slide.insertBefore(el, anchor);
+      else slide.appendChild(el);
+    });
+    // 一次性气泡：说完就死
+    if (!isReminderRead('s7_reorder_hint')) {
+      showReminderBanner('s7_reorder_hint', '🌙', '顺序帮你调了，可以展开改', null, null);
+    }
+  }
+
+  if (fold && pending.length > 3) {
+    pending.forEach(function(el, i) {
+      if (i >= 3) el.classList.add('today-item--folded');
+    });
+    var foldBtn = document.createElement('button');
+    foldBtn.type = 'button';
+    foldBtn.className = 'today-fold';
+    foldBtn.textContent = '还有 ' + (pending.length - 3) + ' 件 · 展开';
+    pending[2].parentNode.insertBefore(foldBtn, pending[2].nextSibling);
+    foldBtn.addEventListener('click', function() {
+      slide.querySelectorAll('.today-item--folded').forEach(function(el) { el.classList.remove('today-item--folded'); });
+      foldBtn.remove();
+    });
+  }
+}
+
+// ---- 目标落后建议区块（可一键拒绝）----
+function getBehindGoal() {
+  var today = todayKey();
+  var cands = loadGoals().filter(function(g) {
+    if (g.completed || g.paused || !g.deadline) return false;
+    if (isReminderRead('s7_suggest_' + today + '_' + g.id)) return false;
+    if (daysBetween(new Date(), g.deadline) < 1) return false;
+    return calcPace(g) === 'red';
+  });
+  if (cands.length === 0) return null;
+  cands.sort(function(a, b) { return new Date(a.deadline) - new Date(b.deadline); });
+  return cands[0];
+}
+function renderGoalSuggestion() {
+  var slide = document.getElementById('today-slide-list');
+  if (!slide || document.getElementById('today-suggest')) return;
+  var g = getBehindGoal();
+  if (!g) return;
+  var nextName = null;
+  if (g.type === 'composite' && g.children) {
+    for (var i = 0; i < g.children.length; i++) {
+      if (!g.children[i].completed) { nextName = g.children[i].name; break; }
+    }
+  }
+  var itemTitle = nextName || ('推进「' + g.name + '」');
+  var text = nextName
+    ? '「' + g.name + '」有点赶，把「' + nextName + '」放进今天？'
+    : '「' + g.name + '」有点赶，今天补一点？';
+  var block = document.createElement('div');
+  block.className = 'today-suggest';
+  block.id = 'today-suggest';
+  block.innerHTML =
+    '<span class="today-suggest__text">' + escapeHtml(text) + '</span>'
+    + '<span class="today-suggest__actions">'
+    + '<button type="button" class="btn btn--primary btn--small" id="suggest-accept-btn">放进今天</button>'
+    + '<button type="button" class="btn btn--ghost btn--small" id="suggest-reject-btn">今天先不了</button>'
+    + '</span>';
+  block.dataset.goalId = g.id;
+  block.dataset.itemTitle = itemTitle;
+  var summary = slide.querySelector('.today-summary');
+  if (summary) summary.parentNode.insertBefore(block, summary.nextSibling);
+  else slide.insertBefore(block, slide.firstChild);
+  block.querySelector('#suggest-accept-btn').addEventListener('click', function() {
+    var schedule = loadSchedule();
+    schedule.push({
+      id: uuid(),
+      title: block.dataset.itemTitle,
+      time: '',
+      endTime: '',
+      repeat: 'once',
+      days: [],
+      date: todayKey(),
+      goalId: g.id,
+      createdAt: new Date().toISOString()
+    });
+    saveSchedule(schedule);
+    markReminderRead('s7_suggest_' + todayKey() + '_' + g.id);
+    renderTodayBoard();
+    showToast('放进今天了', 'success');
+  });
+  block.querySelector('#suggest-reject-btn').addEventListener('click', function() {
+    markReminderRead('s7_suggest_' + todayKey() + '_' + g.id);
+    block.remove();
+  });
+}
+
+// ---- 23:30 未完成自动顺延 ----
+function wasItemCheckedSince(it, fromDate) {
+  var all = loadCheckins();
+  for (var dk in all) {
+    if (dk >= fromDate && all[dk] && all[dk][it.id]) return true;
+  }
+  return false;
+}
+function autoPostponeItems(targetKey) {
+  var s = loadSettingsS5();
+  if (s.autoPostpone === false) return; // 默认开
+  var target = targetKey || todayKey();
+  var schedule = loadSchedule();
+  var moved = [], changed = false;
+  schedule.forEach(function(it) {
+    if (it.repeat !== 'once' || !it.date || it.date >= target) return;
+    if (wasItemCheckedSince(it, it.date)) return;
+    it.date = target;
+    changed = true;
+    moved.push(it.title);
+  });
+  if (!changed) return;
+  saveSchedule(schedule);
+  renderTodayBoard();
+  moved.slice(0, 3).forEach(function(t) { showToast('「' + t + '」挪到今天了', 'info'); });
+  if (moved.length > 3) showToast('还有 ' + (moved.length - 3) + ' 件也一起挪过来了', 'info');
+}
+function _schedulePostponeTimer() {
+  var now = new Date();
+  var target = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 30, 0);
+  if (target <= now) target.setDate(target.getDate() + 1);
+  setTimeout(function() {
+    var tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
+    autoPostponeItems(formatDate(tomorrow.toISOString()));
+    _schedulePostponeTimer();
+  }, target - now);
+}
+
+// ---- 计数卡提醒阈值（默认不提醒）----
+function checkCounterThresholds() {
+  var today = todayKey();
+  loadCustomCards().forEach(function(c) {
+    if (c.type !== 'counter' || !c.remindThreshold) return;
+    var entries = customEntriesForCard(c.id, today);
+    var total = entries.reduce(function(s, e) { return s + (parseInt(e.valueNum, 10) || 0); }, 0);
+    if (total > c.remindThreshold) {
+      showReminderBanner('s7_ccth_' + today + '_' + c.id, '📌',
+        '「' + c.name + '」今天记到 ' + total + ' 了', null, null);
+    }
+  });
+}
+
+// ---- 挂载：渲染今日看板后自动应用重排/折叠/建议 ----
+var _s7RenderTodayBoardOrig = renderTodayBoard;
+renderTodayBoard = function() {
+  _s7RenderTodayBoardOrig();
+  applyStressLayout();
+  renderGoalSuggestion();
+};
+
+// ---- Sprint 7 init ----
+function initSprint7() {
+  // 打开时先做一次顺延检查（昨晚没做完的，挪到今天）
+  setTimeout(autoPostponeItems, 400);
+  // 页面一直开着：每天 23:30 检查一次
+  _schedulePostponeTimer();
+  // 计数卡阈值提醒
+  setTimeout(checkCounterThresholds, 800);
+  // 文案规则：打开时的时刻检查（回归 / 周日 / 月末 / 深夜 / 情绪页小字）
+  setTimeout(checkOpenMomentCopy, 600);
+  _scheduleMidnightTimer();
+  // 设置开关
+  var toggle = document.getElementById('autopostpone-toggle');
+  if (toggle) {
+    toggle.addEventListener('click', function() {
+      var s = loadSettingsS5();
+      s.autoPostpone = (s.autoPostpone !== false) ? false : true; // 默认开
+      saveSettingsS5(s);
+      refreshSettingsUI();
+    });
+  }
+  var midToggle = document.getElementById('midnight-toggle');
+  if (midToggle) {
+    midToggle.addEventListener('click', function() {
+      var s = loadSettingsS5();
+      s.midnightAsk = !s.midnightAsk;
+      saveSettingsS5(s);
+      refreshSettingsUI();
+    });
+  }
+  var rrToggle = document.getElementById('record-respond-toggle');
+  if (rrToggle) {
+    rrToggle.addEventListener('click', function() {
+      var s = loadSettingsS5();
+      s.recordRespond = !s.recordRespond;
+      saveSettingsS5(s);
+      refreshSettingsUI();
+    });
+  }
+}
+
+// ============================================================
+// 文案规则引擎（铁律：表外一律沉默，禁止自由发挥）
+// - 只有规则表列出的时刻允许出现文案，其余一律沉默；数据缺失时沉默
+// - 同一时刻多条触发，只显示表序最靠前的一条
+// - 一次性文案用本地 flag 记录，之后永不出现
+// - {变量} 用真实数据原样替换；不加语气词、感叹号、emoji
+// ============================================================
+
+// 统一出口：文案 toast（无图标、无语气）
+function copyToast(text, opts) {
+  if (opts) showToast(text, 'success', opts);
+  else showToast(text, 'success');
+}
+
+// ---- 打卡时刻（表序：3-5 里程碑 > 8 回归 > 2 打卡完成）----
+// goal: 打卡后的目标对象；prevLastDate: 本次打卡前的最后打卡日；
+// hadTodayBefore: 本次打卡之前今天是否已有打卡（当天首次打卡判定用）
+function copyCheckinResponse(goal, prevLastDate, hadTodayBefore, undoFn) {
+  var streak = calcStreak(goal.checkins || []);
+  if (!hadTodayBefore) { // 里程碑只看当天首次打卡
+    if (streak === 7) { copyToast('您已经度过了最难坚持下来的七天'); return; }
+    if (streak === 30) { copyToast('恭喜你，已经养成了一个良好习惯'); return; }
+    if (streak === 100) {
+      var sorted = (goal.checkins || []).slice().sort(function(a, b) {
+        return (a.date || '').localeCompare(b.date || '');
+      });
+      copyToast('100 天。从' + (sorted[0] ? sorted[0].date : '') + '到今天。');
+      return;
+    }
+  }
+  if (prevLastDate) {
+    var missed = daysBetween(prevLastDate, todayKey()) - 1; // 断签天数
+    if (missed >= 7) { copyToast('您之前记的都还在，欢迎回归，老朋友'); return; }
+  }
+  copyToast('千里之行，始于足下', undoFn ? { undo: undoFn } : null);
+}
+
+// ---- 敏感卡片回应（表序 9：开关 + 卡片自身标记敏感，两者都满足才说）----
+function sensitiveCardRespond(cardId) {
+  var s = loadSettingsS5();
+  if (!s.recordRespond) return;
+  var card = loadCustomCards().find(function(c) { return c.id === cardId; });
+  if (!card || !card.sensitive) return;
+  copyToast('记下了。');
+}
+
+// ---- 打卡计数：目标打卡 + 未挂目标的日程打卡（挂目标的日程走目标记录，避免重复计）----
+function countCheckinsRange(fromKey, toKeyExclusive) {
+  var n = 0;
+  loadGoals().forEach(function(g) {
+    (g.checkins || []).forEach(function(c) {
+      if (!c.date) return;
+      if (c.date >= fromKey && (!toKeyExclusive || c.date < toKeyExclusive)) n++;
+    });
+  });
+  var all = loadCheckins();
+  var linked = {};
+  loadSchedule().forEach(function(it) { if (it.goalId) linked[it.id] = true; });
+  for (var dk in all) {
+    if (!all[dk] || dk < fromKey) continue;
+    if (toKeyExclusive && dk >= toKeyExclusive) continue;
+    for (var iid in all[dk]) { if (!linked[iid]) n++; }
+  }
+  return n;
+}
+
+// ---- 周日 20:00 后首次打开（表序 13）----
+function copySundayReport() {
+  var now = new Date();
+  if (now.getDay() !== 0 || now.getHours() < 20) return;
+  var flag = 'copy_sunday_' + _s7WeekKey(now);
+  if (isReminderRead(flag)) return;
+  var dow = (now.getDay() + 6) % 7; // 0 = 周一
+  var monday = new Date(now); monday.setDate(now.getDate() - dow);
+  var lastMonday = new Date(monday); lastMonday.setDate(lastMonday.getDate() - 7);
+  var thisStart = formatDate(monday.toISOString());
+  var lastStart = formatDate(lastMonday.toISOString());
+  var thisCnt = countCheckinsRange(thisStart, null);
+  var lastCnt = countCheckinsRange(lastStart, thisStart);
+  // 本周睡眠均值——没记睡眠就整条沉默
+  var recs = loadSleep().filter(function(r) { return r.date && r.date >= thisStart && r.date <= todayKey(); });
+  var durs = [];
+  recs.forEach(function(r) {
+    var b = parseHM(r.bedtime), w = parseHM(r.waketime);
+    if (b == null || w == null) return;
+    durs.push(w >= b ? (w - b) : (24 * 60 - b + w));
+  });
+  if (durs.length === 0) return;
+  var avgH = (durs.reduce(function(a, b) { return a + b; }, 0) / durs.length / 60).toFixed(1);
+  showReminderBanner(flag, '', '这周打卡' + thisCnt + '次，平均睡' + avgH + 'h。比上周多' + (thisCnt - lastCnt) + '次。', null, null);
+}
+
+// ---- 每月最后一天打开（表序 14）----
+function copyMonthReport() {
+  var now = new Date();
+  var lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  if (now.getDate() !== lastDay) return;
+  var flag = 'copy_month_' + now.getFullYear() + '-' + (now.getMonth() + 1);
+  if (isReminderRead(flag)) return;
+  var mk = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+  var recs = loadFinance().filter(function(r) { return (r.date || '').slice(0, 7) === mk; });
+  if (recs.length === 0) return; // 没记账 → 沉默
+  var saved = 0;
+  recs.forEach(function(r) {
+    var amt = parseFloat(r.amount) || 0;
+    saved += (r.type === 'income') ? amt : -amt;
+  });
+  showReminderBanner(flag, '', (now.getMonth() + 1) + '月：记账' + recs.length + '笔，存下' + saved.toFixed(2) + '。', null, null);
+}
+
+// ---- 深夜询问（表序 12：深夜开关开启时）----
+var _midnightYes = false;
+function maybeAskMidnight() {
+  var s = loadSettingsS5();
+  if (!s.midnightAsk) return;
+  var now = new Date();
+  if (now.getHours() >= 5) return; // 只在 00:00–04:59 之间问
+  var flag = 'copy_midnight_' + todayKey();
+  if (isReminderRead(flag)) return;
+  markReminderRead(flag); // 一晚只问一次
+  var bar = document.createElement('div');
+  bar.className = 'midnight-ask';
+  bar.innerHTML = '<span class="midnight-ask__text">已经明天了，是否将今日的操作记为今天的？</span>'
+    + '<button type="button" class="btn btn--primary btn--small" id="midnight-yes-btn">是</button>'
+    + '<button type="button" class="btn btn--ghost btn--small" id="midnight-no-btn">否</button>';
+  document.body.appendChild(bar);
+  bar.querySelector('#midnight-yes-btn').addEventListener('click', function() {
+    _midnightYes = true;
+    bar.remove();
+    renderTodayBoard();
+  });
+  bar.querySelector('#midnight-no-btn').addEventListener('click', function() { bar.remove(); });
+}
+// 答「是」之后、凌晨 5 点前：今日的操作记到刚过完的那天
+var _todayKeyOrig = todayKey;
+todayKey = function() {
+  if (_midnightYes && new Date().getHours() < 5) {
+    var d = new Date(); d.setDate(d.getDate() - 1);
+    return formatDate(d.toISOString());
+  }
+  return _todayKeyOrig();
+};
+function _scheduleMidnightTimer() {
+  var now = new Date();
+  var target = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 5);
+  setTimeout(function() {
+    maybeAskMidnight();
+    _scheduleMidnightTimer();
+  }, target - now);
+}
+
+// ---- 打开时刻统一入口（initSprint7 调用）----
+function checkOpenMomentCopy() {
+  copySundayReport();
+  copyMonthReport();
+  maybeAskMidnight();
 }
